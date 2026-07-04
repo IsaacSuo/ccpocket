@@ -1,10 +1,14 @@
 import java.util.Properties
 import java.io.FileInputStream
 
+val isNoGmsBuild = gradle.startParameter.taskNames.any { taskName ->
+    taskName.contains("NoGms", ignoreCase = true)
+}
+
 // Generate dummy google-services.json if not present (for OSS builds without Firebase config).
 // The app will build and run but push notifications will not work.
 val googleServicesFile = file("google-services.json")
-if (!googleServicesFile.exists()) {
+if (!isNoGmsBuild && !googleServicesFile.exists()) {
     googleServicesFile.writeText("""
 {
   "project_info": {
@@ -35,12 +39,14 @@ if (!googleServicesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
-    id("com.google.gms.google-services")
-    // END: FlutterFire Configuration
+    id("com.google.gms.google-services") apply false
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+if (!isNoGmsBuild) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -52,7 +58,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.k9i.ccpocket"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "29.0.13846066"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -73,6 +79,21 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         resourceConfigurations += listOf("en", "ja", "zh-rCN")
+    }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") {
+            dimension = "store"
+        }
+        create("noGms") {
+            dimension = "store"
+            applicationIdSuffix = ".nogms"
+            versionNameSuffix = "-nogms"
+            // Side-loaded noGMS builds keep legacy window resize behavior while
+            // the chat input keyboard path is validated on Android 15+.
+            targetSdk = 35
+        }
     }
 
     signingConfigs {
@@ -97,8 +118,16 @@ android {
     }
 }
 
+androidComponents {
+    beforeVariants(selector().all()) { variant ->
+        val isNoGmsVariant = variant.productFlavors.any { it.second == "noGms" }
+        variant.enable = if (isNoGmsBuild) isNoGmsVariant else !isNoGmsVariant
+    }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("androidx.core:core-ktx:1.17.0")
 }
 
 flutter {

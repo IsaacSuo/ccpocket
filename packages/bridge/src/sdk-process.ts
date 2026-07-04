@@ -34,6 +34,60 @@ const FILE_EDIT_TOOLS = new Set([
   "NotebookEdit",
 ]);
 
+const CLAUDE_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+] as const;
+
+function readClaudeSettingsEnv(): Record<string, unknown> | null {
+  const settingsPath = join(homedir(), ".claude", "settings.json");
+  if (!existsSync(settingsPath)) return null;
+
+  try {
+    const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    const env = (parsed as Record<string, unknown>).env;
+    if (!env || typeof env !== "object" || Array.isArray(env)) {
+      return null;
+    }
+    return env as Record<string, unknown>;
+  } catch (err) {
+    console.warn(`[sdk-process] Failed to read ~/.claude/settings.json env: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+function syncClaudeEnvFromSettings(): void {
+  const env = readClaudeSettingsEnv();
+  if (!env) return;
+
+  for (const key of CLAUDE_ENV_KEYS) {
+    const value = env[key];
+    if (typeof value === "string" && value.trim()) {
+      process.env[key] = value;
+    }
+  }
+
+  // CC Switch stores Claude-compatible keys as ANTHROPIC_AUTH_TOKEN by default.
+  // The Agent SDK and Bridge API-key guard work more consistently when the same
+  // token is also exposed as ANTHROPIC_API_KEY. Prefer the current settings file
+  // over any stale value inherited from an earlier provider switch.
+  const apiKey = env.ANTHROPIC_API_KEY;
+  const authToken = env.ANTHROPIC_AUTH_TOKEN;
+  if (typeof apiKey === "string" && apiKey.trim()) {
+    process.env.ANTHROPIC_API_KEY = apiKey;
+  } else if (typeof authToken === "string" && authToken.trim()) {
+    process.env.ANTHROPIC_API_KEY = authToken;
+  }
+}
+
 function toFiniteNumber(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   return value;
@@ -122,6 +176,7 @@ async function* createIdleUserMessageStream(): AsyncGenerator<SDKUserMsg> {
 export async function listAvailableClaudeModels(
   projectPath?: string,
 ): Promise<ClaudeModelMetadata[]> {
+  syncClaudeEnvFromSettings();
   const authCheck = await checkClaudeAuth();
   if (!authCheck.authenticated) {
     throw new Error(authCheck.message ?? "Claude SDK authentication failed");
@@ -372,6 +427,8 @@ export function buildAuthError(
  * Returns authenticated=false with a message when login is required.
  */
 async function checkClaudeAuth(): Promise<AuthCheckResult> {
+  syncClaudeEnvFromSettings();
+
   // API key authentication — always allowed.
   if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) {
     return { authenticated: true };
@@ -713,6 +770,8 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   }
 
   private startSdkQuery(projectPath: string, options?: StartOptions): void {
+    syncClaudeEnvFromSettings();
+
     console.log(`[sdk-process] Starting SDK query (cwd: ${projectPath}, mode: ${this._permissionMode ?? "default"}${options?.sessionId ? `, resume: ${options.sessionId}` : ""}${options?.continueMode ? ", continue: true" : ""})`);
 
     // In -p mode with --input-format stream-json, Claude CLI won't emit

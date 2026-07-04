@@ -2,8 +2,9 @@
     <uses-permission android:name="com.android.vending.BILLING"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
-        android:label="CC Pocket"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
@@ -89,7 +90,7 @@
             android:value="2" />
         <provider
             android:name="com.superlist.super_native_extensions.DataProvider"
-            android:authorities="com.k9i.ccpocket.SuperClipboardDataProvider"
+            android:authorities="${applicationId}.SuperClipboardDataProvider"
             android:exported="true"
             android:grantUriPermissions="true" />
     </application>

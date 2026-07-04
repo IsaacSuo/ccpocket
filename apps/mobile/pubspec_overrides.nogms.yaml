@@ -1,0 +1,20 @@
+# Copy or symlink this file to pubspec_overrides.yaml before building the
+# Android noGms flavor. It replaces Firebase/Play-dependent plugins with local
+# Dart-only stubs so they are not packaged into the APK. QR scanning is kept
+# enabled because it is part of the connection flow.
+dependency_overrides:
+  # Keep the project's existing Android compatibility override active.
+  irondash_engine_context:
+    git:
+      url: https://github.com/Sabbar-Engineering/irondash
+      path: engine_context/dart
+  firebase_core:
+    path: stubs/firebase_core
+  firebase_messaging:
+    path: stubs/firebase_messaging
+  in_app_review:
+    path: stubs/in_app_review
+  purchases_flutter:
+    path: stubs/purchases_flutter
+  shorebird_code_push:
+    path: stubs/shorebird_code_push

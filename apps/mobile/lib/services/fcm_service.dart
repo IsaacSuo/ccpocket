@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/app_build_config.dart';
 import '../core/logger.dart';
 
 class FcmService {
@@ -15,6 +16,7 @@ class FcmService {
   bool get isAvailable => _available;
 
   bool get isSupportedPlatform {
+    if (AppBuildConfig.noGms) return false;
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.android;

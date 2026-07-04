@@ -4,6 +4,7 @@ import 'package:purchases_flutter/purchases_flutter.dart' as purchases;
 import 'package:purchases_flutter/purchases_flutter.dart'
     show PurchasesErrorCode, PurchasesErrorHelper;
 
+import '../core/app_build_config.dart';
 import '../core/logger.dart';
 
 const _supporterEntitlementId = 'supporter';
@@ -443,6 +444,7 @@ class RevenueCatService {
   }
 
   bool get isSupportedPlatform {
+    if (AppBuildConfig.noGms) return false;
     if (kIsWeb) return false;
     final platform = _platform ?? defaultTargetPlatform;
     return platform == TargetPlatform.iOS || platform == TargetPlatform.android;

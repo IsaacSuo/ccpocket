@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/logger.dart';
+import '../core/app_build_config.dart';
 import '../models/messages.dart';
 import 'bridge_service.dart';
 
@@ -305,9 +306,15 @@ class InAppReviewEligibility {
 }
 
 class InAppReviewGateway {
-  Future<bool> isAvailable() => InAppReview.instance.isAvailable();
+  Future<bool> isAvailable() async {
+    if (AppBuildConfig.noGms) return false;
+    return InAppReview.instance.isAvailable();
+  }
 
-  Future<void> requestReview() => InAppReview.instance.requestReview();
+  Future<void> requestReview() async {
+    if (AppBuildConfig.noGms) return;
+    return InAppReview.instance.requestReview();
+  }
 }
 
 class ReviewMetric {

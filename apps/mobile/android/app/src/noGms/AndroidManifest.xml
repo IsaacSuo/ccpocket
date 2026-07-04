@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="com.android.vending.BILLING"
+        tools:node="remove" />
+
+    <application>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            tools:node="remove" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            tools:node="remove" />
+    </application>
+</manifest>

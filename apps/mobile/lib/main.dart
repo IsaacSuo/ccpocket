@@ -27,6 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:talker_bloc_logger/talker_bloc_logger.dart';
 
+import 'core/app_build_config.dart';
 import 'core/logger.dart';
 import 'l10n/app_localizations.dart';
 import 'features/session_list/state/session_list_cubit.dart';
@@ -121,7 +122,6 @@ void main() async {
   } catch (e) {
     logger.error('[main] syntax_highlight init failed', e);
   }
-
   // Initialize SharedPreferences and services
   final prefs = await SharedPreferences.getInstance();
   const secureStorage = FlutterSecureStorage();
@@ -144,7 +144,7 @@ void main() async {
   // Reads the user-selected track from SharedPreferences and checks for patches
   // in the background. The patch is applied on next app restart.
   // Shorebird OTA is only available on mobile platforms (iOS/Android).
-  if (!kIsWeb && isMobilePlatform) {
+  if (!AppBuildConfig.noGms && !kIsWeb && isMobilePlatform) {
     unawaited(_checkShorebirdUpdate(prefs));
   }
 
@@ -320,6 +320,7 @@ class _CcpocketAppState extends State<CcpocketApp> {
     if (kIsWeb || _fcmHandlersInitialized || !widget.fcmService.isAvailable) {
       return;
     }
+    if (AppBuildConfig.noGms) return;
     _fcmHandlersInitialized = true;
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

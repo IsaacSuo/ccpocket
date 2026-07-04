@@ -1,0 +1,11 @@
+name: in_app_review
+description: No-GMS stub for CC Pocket builds.
+version: 2.0.11
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter

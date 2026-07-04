@@ -1,0 +1,11 @@
+name: shorebird_code_push
+description: No-GMS stub for CC Pocket builds.
+version: 2.0.5
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter

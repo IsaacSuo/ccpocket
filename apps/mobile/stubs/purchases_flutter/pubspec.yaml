@@ -1,0 +1,11 @@
+name: purchases_flutter
+description: No-GMS stub for CC Pocket builds.
+version: 9.16.1
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter

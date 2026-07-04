@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
+import '../../core/app_build_config.dart';
 import '../../core/logger.dart';
 import '../../features/settings/state/settings_cubit.dart';
 import '../../features/settings/state/settings_state.dart';
@@ -73,7 +74,7 @@ class DebugScreen extends StatelessWidget {
                     onChanged: supportBannerService.setDebugForceShowOverride,
                   ),
                   // Shorebird update track (mobile only)
-                  if (isMobilePlatform)
+                  if (!AppBuildConfig.noGms && isMobilePlatform)
                     ListTile(
                       key: const ValueKey('debug_update_track_button'),
                       leading: Icon(Icons.update, color: cs.primary),
@@ -158,6 +159,7 @@ class DebugScreen extends StatelessWidget {
   }
 
   Future<void> _checkForUpdate(BuildContext context, String trackName) async {
+    if (AppBuildConfig.noGms) return;
     try {
       final updater = ShorebirdUpdater();
       final track = UpdateTrack(trackName);

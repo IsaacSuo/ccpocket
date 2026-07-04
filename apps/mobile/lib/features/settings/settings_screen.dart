@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../constants/app_constants.dart';
 import '../../constants/feature_flags.dart';
+import '../../core/app_build_config.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/app_icon.dart';
 import '../../models/git_diff_interaction_mode.dart';
@@ -1799,14 +1800,16 @@ class _VersionTileState extends State<_VersionTile> {
     final version = '${info.version}+${info.buildNumber}';
 
     String result = version;
-    try {
-      final updater = ShorebirdUpdater();
-      final patch = await updater.readCurrentPatch();
-      if (patch != null) {
-        result = '$version (patch ${patch.number})';
+    if (!AppBuildConfig.noGms) {
+      try {
+        final updater = ShorebirdUpdater();
+        final patch = await updater.readCurrentPatch();
+        if (patch != null) {
+          result = '$version (patch ${patch.number})';
+        }
+      } catch (_) {
+        // Shorebird not available (e.g. debug builds)
       }
-    } catch (_) {
-      // Shorebird not available (e.g. debug builds)
     }
 
     if (mounted) {
