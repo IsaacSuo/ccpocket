@@ -103,22 +103,7 @@ class _BottomOverlayLayoutState extends State<BottomOverlayLayout> {
                     height: visibleHeight,
                     child: Align(
                       alignment: Alignment.bottomCenter,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        // Defer unfocus to the next frame so EditableText's
-                        // setState + rebuild doesn't compete with the scroll
-                        // gesture's first frame for the frame budget.
-                        onVerticalDragStart: (_) {
-                          WidgetsBinding.instance.addPostFrameCallback(
-                            (_) {
-                              if (context.mounted) {
-                                FocusScope.of(context).unfocus();
-                              }
-                            },
-                          );
-                        },
-                        child:
-                            NotificationListener<SizeChangedLayoutNotification>(
+                      child: NotificationListener<SizeChangedLayoutNotification>(
                               onNotification: (_) {
                                 WidgetsBinding.instance.addPostFrameCallback(
                                   (_) => _syncOverlayHeight(),
@@ -137,7 +122,6 @@ class _BottomOverlayLayoutState extends State<BottomOverlayLayout> {
                                 ),
                               ),
                             ),
-                      ),
                     ),
                   ),
                 ),

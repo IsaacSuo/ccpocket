@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent, ScrollDirection;
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
@@ -189,19 +189,13 @@ class _ChatMessageListState extends State<ChatMessageList> {
     );
     final totalCount = allEntries.length + (hasStreaming ? 1 : 0);
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        // Only unfocus when user drags the list (not programmatic scroll).
-        // This prevents the keyboard from being dismissed during automatic
-        // scroll-to-bottom triggered by streaming updates.
-        if (notification is UserScrollNotification &&
-            notification.direction != ScrollDirection.idle) {
-          FocusScope.of(context).unfocus();
-        }
-        return false;
-      },
-      child: ListView.builder(
+    return ListView.builder(
         controller: widget.scrollController,
+        // Dismiss keyboard via platform channel (SystemChannels.textInput)
+        // instead of FocusScope.unfocus().  The latter triggers
+        // EditableText.setState() which rebuilds the TextField during
+        // the scroll gesture frame, causing jank.
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         reverse: true,
         padding: EdgeInsets.only(top: 36, bottom: widget.bottomPadding),
         scrollCacheExtent: _chatListCacheExtent,
@@ -300,7 +294,6 @@ class _ChatMessageListState extends State<ChatMessageList> {
             child: child,
           );
         },
-      ),
     );
   }
 

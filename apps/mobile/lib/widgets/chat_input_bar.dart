@@ -94,7 +94,12 @@ class ChatInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+    // RepaintBoundary isolates the input bar's decoration (border, shadow,
+    // TextField focus animation) from the chat list above.  Without this,
+    // a repaint in the input bar cascades through the entire Column,
+    // forcing a full-screen re-composite on every frame of the transition.
+    return RepaintBoundary(
+      child: Container(
       padding: EdgeInsets.only(
         left: 8,
         right: 8,
@@ -187,6 +192,7 @@ class ChatInputBar extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }
