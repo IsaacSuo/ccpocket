@@ -204,7 +204,9 @@ class _DefaultLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fileSuffixes = onFileTap != null
-        ? FilePathSyntax.buildSuffixSet(context.watch<FileListCubit>().state)
+        ? FilePathSyntax.buildSuffixSet(
+            context.select<FileListCubit, List<String>>((c) => c.state),
+          )
         : const <String>{};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

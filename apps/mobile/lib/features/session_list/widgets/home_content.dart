@@ -31,6 +31,34 @@ import 'macos_native_app_banner.dart';
 import 'session_reconnect_banner.dart';
 import 'support_banner.dart';
 
+enum _SessionItemType {
+  reconnectBanner,
+  bridgeBanner,
+  updateBanner,
+  supportBanner,
+  macOSBanner,
+  runningHeader,
+  pendingAction,
+  runningSession,
+  recentHeader,
+  searchField,
+  filterBar,
+  skeleton,
+  emptyResult,
+  recentFlat,
+  projectGroup,
+  loadMore,
+  spacerH4,
+  spacerH8,
+  spacerH16,
+}
+
+class _SessionItem {
+  final _SessionItemType type;
+  final Object? data;
+  const _SessionItem(this.type, [this.data]);
+}
+
 class _ProjectSessionGroup {
   final String projectPath;
   final String projectName;
@@ -567,109 +595,114 @@ class HomeContentState extends State<HomeContent> {
       );
     }
 
-    return ListView(
+    // Build a flat item list for ListView.builder to render lazily.
+    // Only visible items are built — a major win when there are many sessions.
+    final items = <_SessionItem>[];
+
+    // Banners
+    if (isReconnecting) {
+      items.add(const _SessionItem(_SessionItemType.reconnectBanner));
+    }
+    if (connectedBridgeBanner != null) {
+      items.add(_SessionItem(_SessionItemType.bridgeBanner, connectedBridgeBanner));
+    }
+    if (updateBanner != null) {
+      items.add(_SessionItem(_SessionItemType.updateBanner, updateBanner));
+    }
+    if (supportBanner != null) {
+      items.add(_SessionItem(_SessionItemType.supportBanner, supportBanner));
+    }
+    if (macOSNativeAppBanner != null) {
+      items.add(_SessionItem(_SessionItemType.macOSBanner, macOSNativeAppBanner));
+    }
+
+    // Running sessions
+    if (hasRunningSessions) {
+      items.add(const _SessionItem(_SessionItemType.runningHeader));
+      items.add(const _SessionItem(_SessionItemType.spacerH4));
+      for (final action in widget.offlinePendingActions) {
+        items.add(_SessionItem(_SessionItemType.pendingAction, action));
+      }
+      for (final session in widget.sessions) {
+        items.add(_SessionItem(_SessionItemType.runningSession, session));
+      }
+      items.add(const _SessionItem(_SessionItemType.spacerH16));
+    }
+
+    // Recent sessions
+    if (widget.isInitialLoading ||
+        hasRecentSessions ||
+        hasKnownProjects ||
+        hasActiveFilter) {
+      items.add(const _SessionItem(_SessionItemType.recentHeader));
+      if (_isSearching) {
+        items.add(const _SessionItem(_SessionItemType.spacerH4));
+        items.add(const _SessionItem(_SessionItemType.searchField));
+      }
+      items.add(const _SessionItem(_SessionItemType.spacerH8));
+      items.add(const _SessionItem(_SessionItemType.filterBar));
+      items.add(const _SessionItem(_SessionItemType.spacerH8));
+
+      if (widget.isInitialLoading) {
+        items.add(const _SessionItem(_SessionItemType.skeleton));
+      } else if ((!_groupRecentSessions && filteredSessions.isEmpty) ||
+          (_groupRecentSessions && groupedRecentSessions.isEmpty)) {
+        items.add(const _SessionItem(_SessionItemType.emptyResult));
+      } else if (!_groupRecentSessions) {
+        for (final session in filteredSessions) {
+          items.add(_SessionItem(_SessionItemType.recentFlat, session));
+        }
+        if (widget.hasMoreSessions) {
+          items.add(const _SessionItem(_SessionItemType.spacerH8));
+          items.add(const _SessionItem(_SessionItemType.loadMore));
+          items.add(const _SessionItem(_SessionItemType.spacerH8));
+        }
+      } else {
+        for (final group in groupedRecentSessions) {
+          items.add(_SessionItem(_SessionItemType.projectGroup, group));
+        }
+        if (widget.currentProjectFilter != null && widget.hasMoreSessions) {
+          items.add(const _SessionItem(_SessionItemType.spacerH8));
+          items.add(const _SessionItem(_SessionItemType.loadMore));
+          items.add(const _SessionItem(_SessionItemType.spacerH8));
+        }
+      }
+    }
+
+    return ListView.builder(
       key: const ValueKey('session_list'),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
-      children: [
-        if (isReconnecting) const SessionReconnectBanner(),
-        ?connectedBridgeBanner,
-        ?updateBanner,
-        ?supportBanner,
-        ?macOSNativeAppBanner,
-        if (hasRunningSessions) ...[
-          SectionHeader(
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        return switch (item.type) {
+          _SessionItemType.reconnectBanner => const SessionReconnectBanner(),
+          _SessionItemType.bridgeBanner => item.data! as Widget,
+          _SessionItemType.updateBanner => item.data! as Widget,
+          _SessionItemType.supportBanner => item.data! as Widget,
+          _SessionItemType.macOSBanner => item.data! as Widget,
+          _SessionItemType.runningHeader => SectionHeader(
             icon: Icons.play_circle_filled,
             label: l.running,
             color: appColors.statusOnline,
           ),
-          const SizedBox(height: 4),
-          for (final action in widget.offlinePendingActions)
-            OfflinePendingSessionCard(
-              key: ValueKey('pending_session_${action.id}'),
-              action: action,
-              onCancel:
-                  widget.onCancelOfflinePendingAction == null ||
-                      !action.canCancel
-                  ? null
-                  : () => widget.onCancelOfflinePendingAction!(action.id),
-            ),
-          for (final session in widget.sessions)
-            Slidable(
-              key: ValueKey('running_session_${session.id}'),
-              endActionPane: ActionPane(
-                motion: const BehindMotion(),
-                extentRatio: 0.18,
-                children: [
-                  CustomSlidableAction(
-                    onPressed: (_) => widget.onStopSession(session.id),
-                    backgroundColor: Colors.transparent,
-                    padding: EdgeInsets.zero,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.error,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.stop_circle_outlined,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              child: RunningSessionCard(
-                session: session,
-                isUnseen: widget.unseenSessionIds.contains(session.id),
-                isSelected:
-                    selectedSessionId == session.id &&
-                    selectedSessionProvider == session.provider,
-                onLongPress: () =>
-                    widget.onLongPressRunningSession(session, null),
-                onShowActions: (position) =>
-                    widget.onLongPressRunningSession(session, position),
-                onStop: showInlineStopButton
-                    ? () => widget.onStopSession(session.id)
-                    : null,
-                onTap: () => widget.onTapRunning(
-                  session.id,
-                  projectPath: session.projectPath,
-                  gitBranch: session.worktreePath != null
-                      ? session.worktreeBranch
-                      : session.gitBranch,
-                  worktreePath: session.worktreePath,
-                  provider: session.provider,
-                  permissionMode: session.permissionMode,
-                  sandboxMode: session.codexSandboxMode,
-                  approvalPolicy: session.codexApprovalPolicy,
-                  approvalsReviewer: session.codexApprovalsReviewer,
-                ),
-                onApprove: (toolUseId, {bool clearContext = false}) => widget
-                    .onApprovePermission
-                    ?.call(session.id, toolUseId, clearContext: clearContext),
-                onApproveAlways: (toolUseId) =>
-                    widget.onApproveAlways?.call(session.id, toolUseId),
-                onReject: (toolUseId, {String? message}) => widget
-                    .onRejectPermission
-                    ?.call(session.id, toolUseId, message: message),
-                onAnswer: (toolUseId, result) => widget.onAnswerQuestion?.call(
-                  session.id,
-                  toolUseId,
-                  result,
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-        ],
-        if (widget.isInitialLoading ||
-            hasRecentSessions ||
-            hasKnownProjects ||
-            hasActiveFilter) ...[
-          SectionHeader(
+          _SessionItemType.pendingAction => OfflinePendingSessionCard(
+            key: ValueKey('pending_session_${(item.data! as OfflinePendingAction).id}'),
+            action: item.data! as OfflinePendingAction,
+            onCancel: widget.onCancelOfflinePendingAction == null ||
+                !(item.data! as OfflinePendingAction).canCancel
+                ? null
+                : () => widget.onCancelOfflinePendingAction!((item.data! as OfflinePendingAction).id),
+          ),
+          _SessionItemType.runningSession => _buildRunningSessionCard(
+            item.data! as SessionInfo,
+            selectedSessionId: selectedSessionId,
+            selectedSessionProvider: selectedSessionProvider,
+            showInlineStopButton: showInlineStopButton,
+          ),
+          _SessionItemType.recentHeader => SectionHeader(
             icon: Icons.history,
             label: l.recentSessions,
             color: appColors.subtleText,
@@ -687,45 +720,29 @@ class HomeContentState extends State<HomeContent> {
               visualDensity: VisualDensity.compact,
             ),
           ),
-          if (_isSearching) ...[
-            const SizedBox(height: 4),
-            TextField(
-              key: const ValueKey('search_field'),
-              controller: _searchController,
-              autofocus: true,
-              onTapOutside: (_) => FocusScope.of(context).unfocus(),
-              decoration: InputDecoration(
-                hintText: l.searchSessions,
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: 18,
-                  color: appColors.subtleText,
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: appColors.subtleText.withValues(alpha: 0.3),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: appColors.subtleText.withValues(alpha: 0.3),
-                  ),
-                ),
+          _SessionItemType.searchField => TextField(
+            key: const ValueKey('search_field'),
+            controller: _searchController,
+            autofocus: true,
+            onTapOutside: (_) => FocusScope.of(context).unfocus(),
+            decoration: InputDecoration(
+              hintText: l.searchSessions,
+              prefixIcon: Icon(Icons.search, size: 18, color: appColors.subtleText),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: appColors.subtleText.withValues(alpha: 0.3)),
               ),
-              style: const TextStyle(fontSize: 14),
-              onChanged: (v) =>
-                  context.read<SessionListCubit>().setSearchQuery(v),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: appColors.subtleText.withValues(alpha: 0.3)),
+              ),
             ),
-          ],
-          const SizedBox(height: 8),
-          SessionFilterBar(
+            style: const TextStyle(fontSize: 14),
+            onChanged: (v) => context.read<SessionListCubit>().setSearchQuery(v),
+          ),
+          _SessionItemType.filterBar => SessionFilterBar(
             displayMode: _displayMode,
             onToggleDisplayMode: _toggleDisplayMode,
             groupRecentSessions: _groupRecentSessions,
@@ -740,76 +757,133 @@ class HomeContentState extends State<HomeContent> {
             namedOnly: widget.namedOnly,
             onToggleNamed: widget.onToggleNamed,
           ),
-          const SizedBox(height: 8),
-          if (widget.isInitialLoading)
-            const _SessionListSkeleton()
-          else ...[
-            if ((!_groupRecentSessions && filteredSessions.isEmpty) ||
-                (_groupRecentSessions && groupedRecentSessions.isEmpty))
-              _RecentSessionsEmptyResult(
-                title: hasActiveFilter
-                    ? l.noSessionsMatchFilters
-                    : l.noRecentSessions,
-                subtitle: hasActiveFilter ? l.adjustFiltersAndSearch : null,
-              )
-            else if (!_groupRecentSessions) ...[
-              for (final session in filteredSessions)
-                _RecentSessionSlidable(
-                  session: session,
-                  displayMode: _displayMode,
-                  archivingSessionIds: widget.archivingSessionIds,
-                  onArchiveSession: widget.onArchiveSession,
-                  onResumeSession: widget.onResumeSession,
-                  onLongPressRecentSession: widget.onLongPressRecentSession,
-                ),
-              if (widget.hasMoreSessions) ...[
-                const SizedBox(height: 8),
-                _LoadMoreRecentSessionsButton(
-                  isLoadingMore: widget.isLoadingMore,
-                  onLoadMore: widget.onLoadMore,
-                ),
-                const SizedBox(height: 8),
-              ],
-            ] else
-              for (final group in groupedRecentSessions)
-                _ProjectRecentSessionGroup(
-                  group: group,
-                  displayMode: _displayMode,
-                  isCollapsed: widget.collapsedProjectPaths.contains(
-                    group.projectPath,
-                  ),
-                  isLoadingMore: widget.loadingProjectPaths.contains(
-                    group.projectPath,
-                  ),
-                  displayLimit:
-                      widget.projectSessionDisplayLimits[group.projectPath] ??
-                      5,
-                  canLoadFromBridge:
-                      widget.currentProjectFilter == null &&
-                      !widget.exhaustedProjectPaths.contains(group.projectPath),
-                  archivingSessionIds: widget.archivingSessionIds,
-                  onToggleCollapsed: () =>
-                      widget.onToggleProjectCollapsed?.call(group.projectPath),
-                  onLoadMore: () =>
-                      widget.onLoadMoreProject?.call(group.projectPath),
-                  onArchiveSession: widget.onArchiveSession,
-                  onResumeSession: widget.onResumeSession,
-                  onLongPressRecentSession: widget.onLongPressRecentSession,
-                ),
-            if (widget.currentProjectFilter != null &&
-                widget.hasMoreSessions) ...[
-              const SizedBox(height: 8),
-              _LoadMoreRecentSessionsButton(
-                isLoadingMore: widget.isLoadingMore,
-                onLoadMore: widget.onLoadMore,
+          _SessionItemType.skeleton => const _SessionListSkeleton(),
+          _SessionItemType.emptyResult => _RecentSessionsEmptyResult(
+            title: hasActiveFilter ? l.noSessionsMatchFilters : l.noRecentSessions,
+            subtitle: hasActiveFilter ? l.adjustFiltersAndSearch : null,
+          ),
+          _SessionItemType.recentFlat => _RecentSessionSlidable(
+            session: item.data! as RecentSession,
+            displayMode: _displayMode,
+            archivingSessionIds: widget.archivingSessionIds,
+            onArchiveSession: widget.onArchiveSession,
+            onResumeSession: widget.onResumeSession,
+            onLongPressRecentSession: widget.onLongPressRecentSession,
+          ),
+          _SessionItemType.projectGroup => _buildProjectGroup(
+            item.data! as _ProjectSessionGroup,
+          ),
+          _SessionItemType.loadMore => _LoadMoreRecentSessionsButton(
+            isLoadingMore: widget.isLoadingMore,
+            onLoadMore: widget.onLoadMore,
+          ),
+          _SessionItemType.spacerH4 => const SizedBox(height: 4),
+          _SessionItemType.spacerH8 => const SizedBox(height: 8),
+          _SessionItemType.spacerH16 => const SizedBox(height: 16),
+        };
+      },
+    );
+
+  }
+
+
+  Widget _buildRunningSessionCard(
+    SessionInfo session, {
+    required String? selectedSessionId,
+    required String? selectedSessionProvider,
+    required bool showInlineStopButton,
+  }) {
+    return Slidable(
+      key: ValueKey('running_session_${session.id}'),
+      endActionPane: ActionPane(
+        motion: const BehindMotion(),
+        extentRatio: 0.18,
+        children: [
+          CustomSlidableAction(
+            onPressed: (_) => widget.onStopSession(session.id),
+            backgroundColor: Colors.transparent,
+            padding: EdgeInsets.zero,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 8),
-            ],
-          ],
+              child: const Icon(
+                Icons.stop_circle_outlined,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ),
         ],
-      ],
+      ),
+      child: RunningSessionCard(
+        session: session,
+        isUnseen: widget.unseenSessionIds.contains(session.id),
+        isSelected:
+            selectedSessionId == session.id &&
+            selectedSessionProvider == session.provider,
+        onLongPress: () =>
+            widget.onLongPressRunningSession(session, null),
+        onShowActions: (position) =>
+            widget.onLongPressRunningSession(session, position),
+        onStop: showInlineStopButton
+            ? () => widget.onStopSession(session.id)
+            : null,
+        onTap: () => widget.onTapRunning(
+          session.id,
+          projectPath: session.projectPath,
+          gitBranch: session.worktreePath != null
+              ? session.worktreeBranch
+              : session.gitBranch,
+          worktreePath: session.worktreePath,
+          provider: session.provider,
+          permissionMode: session.permissionMode,
+          sandboxMode: session.codexSandboxMode,
+          approvalPolicy: session.codexApprovalPolicy,
+          approvalsReviewer: session.codexApprovalsReviewer,
+        ),
+        onApprove: (toolUseId, {bool clearContext = false}) => widget
+            .onApprovePermission
+            ?.call(session.id, toolUseId, clearContext: clearContext),
+        onApproveAlways: (toolUseId) =>
+            widget.onApproveAlways?.call(session.id, toolUseId),
+        onReject: (toolUseId, {String? message}) => widget
+            .onRejectPermission
+            ?.call(session.id, toolUseId, message: message),
+        onAnswer: (toolUseId, result) => widget.onAnswerQuestion?.call(
+          session.id,
+          toolUseId,
+          result,
+        ),
+      ),
     );
   }
+
+  Widget _buildProjectGroup(_ProjectSessionGroup group) {
+    return _ProjectRecentSessionGroup(
+      group: group,
+      displayMode: _displayMode,
+      isCollapsed: widget.collapsedProjectPaths.contains(group.projectPath),
+      isLoadingMore: widget.loadingProjectPaths.contains(group.projectPath),
+      displayLimit:
+          widget.projectSessionDisplayLimits[group.projectPath] ?? 5,
+      canLoadFromBridge:
+          widget.currentProjectFilter == null &&
+          !widget.exhaustedProjectPaths.contains(group.projectPath),
+      archivingSessionIds: widget.archivingSessionIds,
+      onToggleCollapsed: () =>
+          widget.onToggleProjectCollapsed?.call(group.projectPath),
+      onLoadMore: () =>
+          widget.onLoadMoreProject?.call(group.projectPath),
+      onArchiveSession: widget.onArchiveSession,
+      onResumeSession: widget.onResumeSession,
+      onLongPressRecentSession: widget.onLongPressRecentSession,
+    );
+  }
+
 }
 
 class _LoadMoreRecentSessionsButton extends StatelessWidget {
