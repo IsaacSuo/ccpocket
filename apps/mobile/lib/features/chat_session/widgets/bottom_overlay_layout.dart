@@ -5,6 +5,7 @@ class BottomOverlayLayout extends StatefulWidget {
   final Widget? overlay;
   final Widget? topOverlay;
   final Widget Function(double overlayHeight)? floatingButtonBuilder;
+  final ScrollController? scrollController;
 
   const BottomOverlayLayout({
     super.key,
@@ -12,6 +13,7 @@ class BottomOverlayLayout extends StatefulWidget {
     this.overlay,
     this.topOverlay,
     this.floatingButtonBuilder,
+    this.scrollController,
   });
 
   @override
@@ -21,6 +23,7 @@ class BottomOverlayLayout extends StatefulWidget {
 class _BottomOverlayLayoutState extends State<BottomOverlayLayout> {
   final GlobalKey _overlayKey = GlobalKey();
   double _overlayHeight = 0;
+  double _prevKeyboardInset = 0;
 
   void _syncOverlayHeight() {
     if (!mounted) return;
@@ -46,6 +49,23 @@ class _BottomOverlayLayoutState extends State<BottomOverlayLayout> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    // Adjust scroll position when keyboard height changes.
+    // Moved here from useKeyboardScrollAdjustment to avoid creating a
+    // MediaQuery dependency on _ChatScreenBody (which would rebuild the
+    // entire Scaffold + AppBar on every keyboard animation frame).
+    final delta = keyboardInset - _prevKeyboardInset;
+    _prevKeyboardInset = keyboardInset;
+    if (delta != 0 && widget.scrollController?.hasClients == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final c = widget.scrollController;
+        if (c == null || !c.hasClients) return;
+        final pos = c.position;
+        final target = (pos.pixels + delta).clamp(0.0, pos.maxScrollExtent);
+        c.jumpTo(target);
+      });
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
