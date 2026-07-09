@@ -943,7 +943,10 @@ class ChatInputWithOverlays extends HookWidget {
       );
     }
 
-    final screenWidth = MediaQuery.of(context).size.width;
+    // Use sizeOf instead of MediaQuery.of(context).size so we depend only
+    // on screen size, not on the full MediaQuery.  Otherwise keyboard
+    // animation frames (viewInsets changes) rebuild this widget every frame.
+    final screenWidth = MediaQuery.sizeOf(context).width;
 
     Widget buildFollowerOverlay({required Widget child}) {
       return CompositedTransformFollower(

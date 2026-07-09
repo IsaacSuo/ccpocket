@@ -99,7 +99,11 @@ class ChatInputBar extends StatelessWidget {
         left: 8,
         right: 8,
         top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+        // Use paddingOf instead of MediaQuery.of(context).padding so we
+        // depend only on safe-area insets, not on the full MediaQuery.
+        // Otherwise keyboard animation frames (viewInsets changes) would
+        // rebuild the entire input bar tree every frame.
+        bottom: MediaQuery.paddingOf(context).bottom + 8,
       ),
       decoration: BoxDecoration(
         color: cs.surface,
@@ -138,7 +142,7 @@ class ChatInputBar extends StatelessWidget {
           Row(
             children: [
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: Duration.zero,
                 child: isInputEmpty
                     ? _SlashCommandButton(
                         key: const ValueKey('slash_command_button'),
@@ -967,16 +971,16 @@ class _InputTextFieldState extends State<_InputTextField> {
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide.none,
         ),
+        // Use the same border for both states — no animation on focus
+        // change avoids a 200 ms internal InputDecorator transition that
+        // competes with the scroll gesture's first frame.
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: cs.outlineVariant, width: 0.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide(
-            color: cs.primary.withValues(alpha: 0.5),
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: cs.outlineVariant, width: 0.5),
         ),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
