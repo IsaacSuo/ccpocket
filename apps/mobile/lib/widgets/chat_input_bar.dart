@@ -230,25 +230,26 @@ class _DedentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
+    // Use baked-in alpha on child colors instead of Opacity widget.
+    // Opacity forces a saveLayer on the raster thread; applying alpha
+    // directly to leaf colors avoids the compositing layer entirely.
+    final enabledAlpha = enabled ? 1.0 : 0.4;
     return Tooltip(
       message: l.tooltipDedent,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
-        child: Material(
-          color: cs.surfaceContainerHigh,
+      child: Material(
+        color: cs.surfaceContainerHigh.withValues(alpha: enabledAlpha),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: enabled ? onTap : null,
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.format_indent_decrease,
-                size: 18,
-                color: cs.primary,
-              ),
+          onTap: enabled ? onTap : null,
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.format_indent_decrease,
+              size: 18,
+              color: cs.primary.withValues(alpha: enabledAlpha),
             ),
           ),
         ),
@@ -301,28 +302,26 @@ class _MentionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
+    final enabledAlpha = enabled ? 1.0 : 0.4;
     return Tooltip(
       message: l.tooltipMention,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
-        child: Material(
-          color: cs.surfaceContainerHigh,
+      child: Material(
+        color: cs.surfaceContainerHigh.withValues(alpha: enabledAlpha),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          key: const ValueKey('mention_button'),
           borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            key: const ValueKey('mention_button'),
-            borderRadius: BorderRadius.circular(20),
-            onTap: enabled ? onTap : null,
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              child: Text(
-                '@',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
-                ),
+          onTap: enabled ? onTap : null,
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            child: Text(
+              '@',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: cs.primary.withValues(alpha: enabledAlpha),
               ),
             ),
           ),
@@ -1094,26 +1093,33 @@ class _SendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    final opacity = enabled ? 1.0 : 0.4;
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [cs.primary, cs.primary.withValues(alpha: 0.8)],
-          ),
-          borderRadius: BorderRadius.circular(20),
+    // Use baked-in alpha on gradient colors + icon instead of Opacity
+    // widget.  Opacity forces a saveLayer (expensive on Android raster
+    // thread); applying alpha directly to leaf colors avoids it entirely.
+    final a = enabled ? 1.0 : 0.4;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            cs.primary.withValues(alpha: a),
+            cs.primary.withValues(alpha: 0.8 * a),
+          ],
         ),
-        child: IconButton(
-          key: const ValueKey('send_button'),
-          tooltip: l.tooltipSendMessage,
-          onPressed: enabled ? onSend : null,
-          icon: Icon(Icons.arrow_upward, color: cs.onPrimary, size: 20),
-          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-          padding: EdgeInsets.zero,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: IconButton(
+        key: const ValueKey('send_button'),
+        tooltip: l.tooltipSendMessage,
+        onPressed: enabled ? onSend : null,
+        icon: Icon(
+          Icons.arrow_upward,
+          color: cs.onPrimary.withValues(alpha: a),
+          size: 20,
         ),
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        padding: EdgeInsets.zero,
       ),
     );
   }

@@ -95,18 +95,13 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                   children: [
                     // Animated icon when streaming
                     if (widget.isStreaming)
-                      AnimatedBuilder(
-                        animation: _pulseAnimation,
-                        builder: (context, child) {
-                          return Opacity(
-                            opacity: _pulseAnimation.value,
-                            child: Icon(
-                              Icons.psychology,
-                              size: 16,
-                              color: thinkingColor,
-                            ),
-                          );
-                        },
+                      FadeTransition(
+                        opacity: _pulseAnimation,
+                        child: Icon(
+                          Icons.psychology,
+                          size: 16,
+                          color: thinkingColor,
+                        ),
                       )
                     else
                       Icon(Icons.psychology, size: 16, color: thinkingColor),

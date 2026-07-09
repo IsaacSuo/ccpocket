@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,24 +39,20 @@ class SessionModeBar extends StatelessWidget {
 
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bar = ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-          decoration: BoxDecoration(
-            color: isDark
-                ? cs.surface.withValues(alpha: 0.6)
-                : cs.surface.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : Colors.white.withValues(alpha: 0.6),
-            ),
-          ),
-          child: IntrinsicHeight(
+    final bar = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDark
+            ? cs.surface.withValues(alpha: 0.78)
+            : cs.surface.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.7),
+        ),
+      ),
+      child: IntrinsicHeight(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -139,8 +133,6 @@ class SessionModeBar extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
     );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -204,26 +196,33 @@ class _PulsingModeBarSurfaceState extends State<_PulsingModeBarSurface>
     final appColors = Theme.of(context).extension<AppColors>()!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (!widget.inPlanMode) {
+    // PERF DIAG: temporarily disable continuous border animation
+    // to test if it causes bottom-area scroll jank.
+    if (true || !widget.inPlanMode) {
       return widget.child;
     }
 
-    return AnimatedBuilder(
-      animation: _controller,
-      child: widget.child,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _RotatingBorderPainter(
-            progress: _controller.value,
-            color: appColors.statusPlan,
-            glowColor: appColors.statusPlanGlow,
-            borderRadius: 12,
-            strokeWidth: 1.5,
-            isDark: isDark,
-          ),
-          child: child,
-        );
-      },
+    // RepaintBoundary isolates this animation's repaint from the Stack,
+    // preventing it from propagating to sibling render objects (including
+    // the ChatMessageList).
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        child: widget.child,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: _RotatingBorderPainter(
+              progress: _controller.value,
+              color: appColors.statusPlan,
+              glowColor: appColors.statusPlanGlow,
+              borderRadius: 12,
+              strokeWidth: 1.5,
+              isDark: isDark,
+            ),
+            child: child,
+          );
+        },
+      ),
     );
   }
 }
@@ -235,6 +234,9 @@ class _RotatingBorderPainter extends CustomPainter {
   final double borderRadius;
   final double strokeWidth;
   final bool isDark;
+
+  // Cache the path perimeter across frames — size & borderRadius rarely change.
+  static final Map<int, double> _perimeterCache = {};
 
   _RotatingBorderPainter({
     required this.progress,
@@ -257,13 +259,19 @@ class _RotatingBorderPainter extends CustomPainter {
       ..strokeWidth = strokeWidth;
     canvas.drawRRect(rrect, basePaint);
 
-    // Build path from the rounded rect and find the dot position
+    // Build path and find the dot position.
+    // Cache the total perimeter since size & borderRadius are stable.
     final path = Path()..addRRect(rrect);
-    final metric = path.computeMetrics().first;
-    final totalLen = metric.length;
-    final dotOffset = metric.getTangentForOffset(totalLen * progress)!.position;
+    final cacheKey = Object.hash(size.width, size.height, borderRadius);
+    final totalLen = _perimeterCache[cacheKey] ??
+        (_perimeterCache[cacheKey] =
+            path.computeMetrics().first.length);
+    final dotOffset =
+        path.computeMetrics().first.getTangentForOffset(totalLen * progress)!.position;
 
-    // Radial gradient centered on the dot for a clean glow
+    // Radial gradient centered on the dot for a clean glow.
+    // The gradient fades to transparent naturally — no MaskFilter.blur
+    // (expensive GPU Gaussian blur) or clipPath needed.
     final glowRadius = 18.0;
     final dotRect = Rect.fromCircle(center: dotOffset, radius: glowRadius);
     final radial = RadialGradient(
@@ -275,28 +283,9 @@ class _RotatingBorderPainter extends CustomPainter {
       stops: const [0.0, 0.35, 1.0],
     );
 
-    // Clip to border stroke region (outer rrect minus inner rrect)
-    final halfW = (strokeWidth + 4) / 2;
-    final outerRRect = RRect.fromRectAndRadius(
-      rect.inflate(halfW),
-      Radius.circular(borderRadius + halfW),
-    );
-    final innerRRect = RRect.fromRectAndRadius(
-      rect.deflate(halfW),
-      Radius.circular((borderRadius - halfW).clamp(0, double.infinity)),
-    );
-    final clipPath = Path()
-      ..addRRect(outerRRect)
-      ..addRRect(innerRRect)
-      ..fillType = PathFillType.evenOdd;
-
-    canvas.save();
-    canvas.clipPath(clipPath);
-
     // Outer glow
     final glowPaint = Paint()
-      ..shader = radial.createShader(dotRect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      ..shader = radial.createShader(dotRect);
     canvas.drawRect(dotRect, glowPaint);
 
     // Bright core
@@ -311,8 +300,6 @@ class _RotatingBorderPainter extends CustomPainter {
     );
     final corePaint = Paint()..shader = coreGradient.createShader(coreRect);
     canvas.drawRect(coreRect, corePaint);
-
-    canvas.restore();
   }
 
   @override

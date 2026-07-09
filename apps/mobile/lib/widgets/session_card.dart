@@ -2299,81 +2299,78 @@ class _StatusDotPainter extends CustomPainter {
     required this.isDark,
   });
 
+  // Cache path perimeter for plan-mode orbit — size is fixed at 14×14.
+  static double? _cachedOrbitLength;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     const dotRadius = 5.0;
 
-    // Glow behind the dot (animated pulse or static unseen glow)
+    // Glow behind the dot (animated pulse or static unseen glow).
+    // Use a semi-transparent circle instead of MaskFilter.blur —
+    // avoids expensive GPU Gaussian blur every frame.
     if (animate) {
-      final glowPaint = Paint()
-        ..color = color.withValues(alpha: pulseValue * 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-      canvas.drawCircle(center, dotRadius + 1.5, glowPaint);
+      canvas.drawCircle(
+        center,
+        dotRadius + 1.5,
+        Paint()..color = color.withValues(alpha: pulseValue * 0.12),
+      );
     } else if (glow) {
-      final glowPaint = Paint()
-        ..color = color.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-      canvas.drawCircle(center, dotRadius + 1.5, glowPaint);
+      canvas.drawCircle(
+        center,
+        dotRadius + 1.5,
+        Paint()..color = color.withValues(alpha: 0.12),
+      );
     }
 
     // Main dot
-    final dotPaint = Paint()..color = color.withValues(alpha: pulseValue);
-    canvas.drawCircle(center, dotRadius, dotPaint);
+    canvas.drawCircle(
+      center,
+      dotRadius,
+      Paint()..color = color.withValues(alpha: pulseValue),
+    );
 
-    // Plan mode: orbiting light around the dot
+    // Plan mode: orbiting light around the dot.
+    // Radial gradient provides glow without MaskFilter.blur or clipPath.
     if (inPlanMode) {
       final orbitRadius = dotRadius + 2.5;
       final path = Path()
         ..addOval(Rect.fromCircle(center: center, radius: orbitRadius));
-      final metric = path.computeMetrics().first;
-      final lightPos = metric
-          .getTangentForOffset(metric.length * orbitProgress)!
+      _cachedOrbitLength ??= path.computeMetrics().first.length;
+      final lightPos = path
+          .computeMetrics()
+          .first
+          .getTangentForOffset(_cachedOrbitLength! * orbitProgress)!
           .position;
-
-      // Clip to a thin ring around the dot
-      const ringHalf = 2.0;
-      final clipPath = Path()
-        ..addOval(
-          Rect.fromCircle(center: center, radius: orbitRadius + ringHalf),
-        )
-        ..addOval(Rect.fromCircle(center: center, radius: dotRadius - 0.5))
-        ..fillType = PathFillType.evenOdd;
-
-      canvas.save();
-      canvas.clipPath(clipPath);
 
       // Glow
       final glowRect = Rect.fromCircle(center: lightPos, radius: 8);
-      final radial = RadialGradient(
-        colors: [
-          planGlowColor.withValues(alpha: isDark ? 0.9 : 0.7),
-          planColor.withValues(alpha: isDark ? 0.3 : 0.2),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.4, 1.0],
-      );
       final glowPaint = Paint()
-        ..shader = radial.createShader(glowRect)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+        ..shader = RadialGradient(
+          colors: [
+            planGlowColor.withValues(alpha: isDark ? 0.9 : 0.7),
+            planColor.withValues(alpha: isDark ? 0.3 : 0.2),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.4, 1.0],
+        ).createShader(glowRect);
       canvas.drawRect(glowRect, glowPaint);
 
       // Bright core
       final coreRect = Rect.fromCircle(center: lightPos, radius: 4);
-      final coreGradient = RadialGradient(
-        colors: [
-          planGlowColor.withValues(alpha: isDark ? 1.0 : 0.85),
-          planColor.withValues(alpha: isDark ? 0.4 : 0.3),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.5, 1.0],
-      );
       canvas.drawRect(
         coreRect,
-        Paint()..shader = coreGradient.createShader(coreRect),
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              planGlowColor.withValues(alpha: isDark ? 1.0 : 0.85),
+              planColor.withValues(alpha: isDark ? 0.4 : 0.3),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ).createShader(coreRect),
       );
-
-      canvas.restore();
     }
   }
 
