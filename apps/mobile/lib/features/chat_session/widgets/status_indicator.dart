@@ -170,7 +170,8 @@ class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _animation,
-      builder: (context, child) {
+      child: _buildDot(),
+      builder: (context, dot) {
         return Container(
           width: 22,
           height: 22,
@@ -181,27 +182,31 @@ class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
           child: Center(
             child: Transform.scale(
               scale: widget.isAnimating ? _animation.value : 1.0,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: widget.color,
-                  shape: BoxShape.circle,
-                  boxShadow: widget.isAnimating
-                      ? [
-                          BoxShadow(
-                            color: widget.color.withValues(alpha: 0.5),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
+              child: dot,
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDot() {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: widget.color,
+        shape: BoxShape.circle,
+        boxShadow: widget.isAnimating
+            ? [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.5),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
     );
   }
 }

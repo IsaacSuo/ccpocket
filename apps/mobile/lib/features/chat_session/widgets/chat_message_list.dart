@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/rendering.dart' show ScrollCacheExtent, ScrollDirection;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
@@ -12,6 +12,8 @@ import '../../message_images/message_images_screen.dart';
 import '../state/chat_session_cubit.dart';
 import '../state/streaming_state.dart';
 import '../state/streaming_state_cubit.dart';
+
+const _chatListCacheExtent = ScrollCacheExtent.pixels(1600);
 
 @visibleForTesting
 bool shouldShowForkForAssistant(List<ChatEntry> entries, int entryIndex) {
@@ -169,9 +171,14 @@ class _ChatMessageListState extends State<ChatMessageList> {
 
   @override
   Widget build(BuildContext context) {
-    final chatState = context.watch<ChatSessionCubit>().state;
-    final hiddenToolUseIds = chatState.hiddenToolUseIds;
-    final allEntries = chatState.entries;
+    // Use context.select to rebuild only when the specific fields change,
+    // not on every ChatSessionCubit state update (status, timestamp, etc.).
+    final hiddenToolUseIds = context.select<ChatSessionCubit, Set<String>>(
+      (cubit) => cubit.state.hiddenToolUseIds,
+    );
+    final allEntries = context.select<ChatSessionCubit, List<ChatEntry>>(
+      (cubit) => cubit.state.entries,
+    );
 
     // Watch only the isStreaming flag (not the full streaming text) so the
     // list rebuilds when streaming starts/stops (to adjust itemCount) but NOT
@@ -197,6 +204,7 @@ class _ChatMessageListState extends State<ChatMessageList> {
         controller: widget.scrollController,
         reverse: true,
         padding: EdgeInsets.only(top: 36, bottom: widget.bottomPadding),
+        scrollCacheExtent: _chatListCacheExtent,
         itemCount: totalCount,
         itemBuilder: (context, index) {
           // index 0 = newest entry (bottom of chat)
@@ -287,10 +295,27 @@ class _ChatMessageListState extends State<ChatMessageList> {
             index: entryIndex,
             child: child,
           );
-          return child;
+          return _ChatEntryKeepAlive(
+            keepAlive: _shouldKeepAlive(entry),
+            child: child,
+          );
         },
       ),
     );
+  }
+
+  bool _shouldKeepAlive(ChatEntry entry) {
+    return switch (entry) {
+      ServerChatEntry(:final message) => switch (message) {
+        AssistantServerMessage() => true,
+        ToolResultMessage(:final content, :final images) =>
+          content.length > 600 || images.isNotEmpty,
+        _ => false,
+      },
+      UserChatEntry(:final text, :final imageUrls, :final imageBytesList) =>
+        text.length > 600 || imageUrls.isNotEmpty || imageBytesList.isNotEmpty,
+      StreamingChatEntry() => false,
+    };
   }
 
   String _entryKey(ChatEntry entry, int index) {
@@ -317,5 +342,38 @@ class _ChatMessageListState extends State<ChatMessageList> {
             : 'user_ts:${entry.timestamp.microsecondsSinceEpoch}:${text.hashCode}:$index',
       StreamingChatEntry() => 'streaming',
     };
+  }
+}
+
+class _ChatEntryKeepAlive extends StatefulWidget {
+  final bool keepAlive;
+  final Widget child;
+
+  const _ChatEntryKeepAlive({
+    required this.keepAlive,
+    required this.child,
+  });
+
+  @override
+  State<_ChatEntryKeepAlive> createState() => _ChatEntryKeepAliveState();
+}
+
+class _ChatEntryKeepAliveState extends State<_ChatEntryKeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => widget.keepAlive;
+
+  @override
+  void didUpdateWidget(covariant _ChatEntryKeepAlive oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.keepAlive != widget.keepAlive) {
+      updateKeepAlive();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

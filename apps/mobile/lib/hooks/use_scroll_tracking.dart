@@ -10,9 +10,12 @@ final Map<String, double> _scrollOffsets = {};
 const _kExtentChangeTolerance = 1.0;
 
 /// Result record returned by [useScrollTracking].
+///
+/// [isScrolledUp] is a [ValueNotifier] so consumers can listen without
+/// triggering a full HookWidget rebuild on every threshold crossing.
 typedef ScrollTrackingResult = ({
   AutoScrollController controller,
-  bool isScrolledUp,
+  ValueNotifier<bool> isScrolledUp,
   void Function() scrollToBottom,
 });
 
@@ -29,7 +32,7 @@ ScrollTrackingResult useScrollTracking(String sessionId) {
   // Dispose the controller when the hook is disposed.
   useEffect(() => controller.dispose, const []);
 
-  final isScrolledUp = useState(false);
+  final isScrolledUp = useValueNotifier(false);
 
   // Ref to track isScrolledUp without rebuilds (for scrollToBottom closure).
   final isScrolledUpRef = useRef(false);
@@ -101,7 +104,7 @@ ScrollTrackingResult useScrollTracking(String sessionId) {
 
   return (
     controller: controller,
-    isScrolledUp: isScrolledUp.value,
+    isScrolledUp: isScrolledUp,
     scrollToBottom: scrollToBottom,
   );
 }

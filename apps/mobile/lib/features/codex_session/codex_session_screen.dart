@@ -619,6 +619,38 @@ class _CodexChatBody extends HookWidget {
       sessionState.projectPath,
     );
     final gitProjectPath = worktreePath ?? effectiveProjectPath;
+
+    // Cache ChatMessageList widget across keyboard animation frames.
+    // When viewInsets changes during keyboard show/hide, BottomOverlayLayout
+    // rebuilds and calls contentBuilder every frame.  Returning the same
+    // widget instance lets Flutter's identical() skip the subtree rebuild.
+    final chatMessageList = useMemoized(
+      () => ChatMessageList(
+        sessionId: sessionId,
+        scrollController: scroll.controller,
+        httpBaseUrl: context.read<BridgeService>().httpBaseUrl,
+        projectPath: effectiveProjectPath,
+        onRetryMessage: null,
+        onRewindMessage: (entry) {
+          _showCodexRewindDialog(
+            context,
+            entry,
+            sessionId: sessionId,
+            inputController: chatInputController,
+            draftService: draftService,
+          );
+        },
+        onForkMessage: (message) {
+          unawaited(_forkCodexFromAssistant(context, message));
+        },
+        scrollToUserEntry: scrollToUserEntry,
+        collapseToolResults: collapseToolResults,
+        bottomPadding: 8,
+        isCodex: true,
+        onFilePeekOpened: context.read<ChatSessionCubit>().recordPeekedFile,
+      ),
+      [sessionId],
+    );
     final gitBadgeTone = _gitBadgeToneOf(
       context,
       sessionId,
@@ -1274,49 +1306,38 @@ class _CodexChatBody extends HookWidget {
                       ),
                     ),
                     floatingButtonBuilder: (overlayHeight) {
-                      if (!scroll.isScrolledUp) return const SizedBox.shrink();
+                      // Always Positioned — avoids Stack structural change.
+                      // Visibility(maintainState: true) keeps the button's
+                      // Element / RenderObject alive across show/hide — no
+                      // widget swap mid-scroll when crossing 100 px threshold.
+                      // The button is built once (cached via child).
                       return Positioned(
                         right: 12,
                         bottom: overlayHeight + 12,
-                        child: ScrollToBottomButton(
-                          onPressed: () {
-                            if (scroll.controller.hasClients) {
-                              scroll.controller.animateTo(
-                                0.0,
-                                duration: const Duration(milliseconds: 200),
-                                curve: Curves.easeOut,
-                              );
-                            }
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: scroll.isScrolledUp,
+                          child: ScrollToBottomButton(
+                            onPressed: () {
+                              if (scroll.controller.hasClients) {
+                                scroll.controller.animateTo(
+                                  0.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeOut,
+                                );
+                              }
+                            },
+                          ),
+                          builder: (context, scrolled, btn) {
+                            return Visibility(
+                              visible: scrolled,
+                              maintainState: true,
+                              child: btn!,
+                            );
                           },
                         ),
                       );
                     },
-                    contentBuilder: (overlayHeight) => ChatMessageList(
-                      sessionId: sessionId,
-                      scrollController: scroll.controller,
-                      httpBaseUrl: context.read<BridgeService>().httpBaseUrl,
-                      projectPath: effectiveProjectPath,
-                      onRetryMessage: null,
-                      onRewindMessage: (entry) {
-                        _showCodexRewindDialog(
-                          context,
-                          entry,
-                          sessionId: sessionId,
-                          inputController: chatInputController,
-                          draftService: draftService,
-                        );
-                      },
-                      onForkMessage: (message) {
-                        unawaited(_forkCodexFromAssistant(context, message));
-                      },
-                      scrollToUserEntry: scrollToUserEntry,
-                      collapseToolResults: collapseToolResults,
-                      bottomPadding: 8,
-                      isCodex: true,
-                      onFilePeekOpened: context
-                          .read<ChatSessionCubit>()
-                          .recordPeekedFile,
-                    ),
+                    contentBuilder: (overlayHeight) => chatMessageList,
                   ),
                 ),
                 if (approval is ApprovalNone)
