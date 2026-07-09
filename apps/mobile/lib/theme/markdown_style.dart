@@ -656,10 +656,12 @@ Color? _parseHexColor(String hex) {
 }
 
 /// Custom inline syntaxes for color code preview.
-List<md.InlineSyntax> get colorCodeInlineSyntaxes => [ColorCodeSyntax()];
+/// Shared instance to avoid recreating on every MarkdownBody build.
+final colorCodeInlineSyntaxes = <md.InlineSyntax>[ColorCodeSyntax()];
 
-/// Custom element builders for color code preview.
-Map<String, MarkdownElementBuilder> get markdownBuilders => {
+/// Custom element builders for color code preview and fenced code blocks.
+/// Shared instance to avoid recreating on every MarkdownBody build.
+final markdownBuilders = <String, MarkdownElementBuilder>{
   'colorCode': ColorCodeBuilder(),
   'pre': FencedCodeBlockBuilder(),
 };
