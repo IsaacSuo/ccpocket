@@ -1627,6 +1627,75 @@ export async function renameClaudeSession(
 }
 
 /**
+ * Ensure a Claude session's JSONL transcript file is discoverable by the CLI.
+ *
+ * The Claude CLI `/resume` picker only shows sessions that meet two criteria:
+ * 1. The first line is `{"type":"mode",...}` (not `"type":"queue-operation"`).
+ * 2. The `entrypoint` field is `"cli"` (not `"sdk-ts"`).
+ *
+ * Sessions started through the Claude Agent SDK fail BOTH checks:
+ * - They start with `"type":"queue-operation"` instead of `"type":"mode"`.
+ * - Every message line has `"entrypoint":"sdk-ts"`.
+ *
+ * This function fixes both issues so the session becomes visible in the
+ * interactive `/resume` picker.  It is best-effort — failures are logged
+ * but never thrown.
+ */
+export async function writeSessionModeEntry(
+  projectPath: string,
+  claudeSessionId: string,
+  worktreePath?: string,
+): Promise<void> {
+  const modeEntry = JSON.stringify({
+    type: "mode",
+    mode: "normal",
+    sessionId: claudeSessionId,
+  }) + "\n";
+  const permModeEntry = JSON.stringify({
+    type: "permission-mode",
+    permissionMode: "default",
+    sessionId: claudeSessionId,
+  }) + "\n";
+
+  try {
+    const jsonlPath = await findSessionJsonlPath(claudeSessionId);
+    if (jsonlPath) {
+      // Read the file, prepend mode + permission-mode, rewrite `entrypoint`,
+      // and write back.  This ensures the session format matches what the
+      // CLI expects for the `/resume` picker.
+      const raw = await readFile(jsonlPath, "utf-8");
+      const fixed = raw
+        .replaceAll(`"entrypoint":"sdk-ts"`, `"entrypoint":"cli"`)
+        .replaceAll(`"entrypoint":"sdk-cli"`, `"entrypoint":"cli"`);
+      await writeFile(jsonlPath, modeEntry + permModeEntry + fixed, "utf-8");
+      return;
+    }
+  } catch {
+    // findSessionJsonlPath may fail if the SDK hasn't written the file yet.
+  }
+
+  // Fallback: construct the path from the project slug and write optimistically.
+  // This covers the race where the entries arrive before the SDK flushes the
+  // JSONL file to disk.
+  try {
+    const slug = pathToSlug(worktreePath ?? projectPath);
+    const candidatePath = join(
+      homedir(),
+      ".claude",
+      "projects",
+      slug,
+      `${claudeSessionId}.jsonl`,
+    );
+    await appendFile(candidatePath, modeEntry + permModeEntry);
+  } catch (err) {
+    console.warn(
+      `[sessions-index] Failed to write mode entry for ${claudeSessionId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/**
  * Read the Codex session_index.jsonl and build a threadId → name map.
  */
 export async function loadCodexSessionNames(): Promise<Map<string, string>> {
@@ -2706,6 +2775,7 @@ async function findCodexSessionJsonlPath(threadId: string): Promise<string | nul
 export async function getSessionHistory(
   sessionId: string,
 ): Promise<SessionHistoryMessage[]> {
+  const t0 = Date.now();
   const jsonlPath = await findSessionJsonlPath(sessionId);
   if (!jsonlPath) return [];
 
@@ -2715,6 +2785,7 @@ export async function getSessionHistory(
   } catch {
     return [];
   }
+  const tRead = Date.now();
 
   const messages: SessionHistoryMessage[] = [];
   const lines = raw.split("\n");
@@ -2808,6 +2879,13 @@ export async function getSessionHistory(
     }
   }
 
+  const tDone = Date.now();
+  console.log(
+    `[sessions-index:perf] getSessionHistory ` +
+    `file=${(raw.length / 1024).toFixed(0)}KB lines=${lines.length} ` +
+    `messages=${messages.length} ` +
+    `read=${tRead - t0}ms parse=${tDone - tRead}ms total=${tDone - t0}ms`,
+  );
   return messages;
 }
 

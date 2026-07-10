@@ -11,6 +11,7 @@ import {
   renameCodexSession,
   saveCodexSessionAdditionalWritableRoots,
   saveCodexSessionProfile,
+  writeSessionModeEntry,
 } from "./sessions-index.js";
 import {
   SdkProcess,
@@ -415,12 +416,28 @@ export class SessionManager {
         if (effectiveProvider === "claude") {
           // Capture Claude session_id from result events
           if (msg.type === "result" && "sessionId" in msg && msg.sessionId) {
+            const isNew = !session.claudeSessionId;
             session.claudeSessionId = msg.sessionId;
             this.saveWorktreeMapping(session);
+            if (isNew) {
+              void writeSessionModeEntry(
+                session.projectPath,
+                msg.sessionId,
+                session.worktreePath,
+              );
+            }
           }
           if (msg.type === "system" && "sessionId" in msg && msg.sessionId) {
+            const isNew = !session.claudeSessionId;
             session.claudeSessionId = msg.sessionId;
             this.saveWorktreeMapping(session);
+            if (isNew) {
+              void writeSessionModeEntry(
+                session.projectPath,
+                msg.sessionId,
+                session.worktreePath,
+              );
+            }
           }
 
           // Cache tool_use names from assistant messages
@@ -622,8 +639,20 @@ export class SessionManager {
     // Retry name persistence after the SDK/CLI has flushed transcript files.
     // This covers early renames that happened before the provider session id
     // or JSONL file was available.
+    // Also performs a deferred entrypoint fix (sdk-ts/sdk-cli → cli) for
+    // sessions where writeSessionModeEntry could only prepend mode entries
+    // because the JSONL file hadn't been flushed yet.
     if (proc instanceof SdkProcess) {
       proc.on("session_end", async () => {
+        if (session.provider === "claude" && session.claudeSessionId) {
+          // Deferred entrypoint fix — writeSessionModeEntry now has the
+          // fully-flushed JSONL to read and rewrite with correct entrypoint.
+          void writeSessionModeEntry(
+            session.projectPath,
+            session.claudeSessionId,
+            session.worktreePath,
+          );
+        }
         if (!session.name) return;
         try {
           if (session.provider === "claude" && session.claudeSessionId) {
