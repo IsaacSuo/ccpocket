@@ -360,13 +360,10 @@ class BridgeService implements BridgeServiceBase {
 
     _setBridgeConnectionState(BridgeConnectionState.connecting);
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
-      _setBridgeConnectionState(BridgeConnectionState.connected);
-      _reconnectAttempt = 0;
-      send(ClientMessage.clientCapabilities());
-      _flushMessageQueue();
+      final channel = WebSocketChannel.connect(Uri.parse(url));
+      _channel = channel;
 
-      _channelSub = _channel!.stream.listen(
+      _channelSub = channel.stream.listen(
         (data) {
           if (epoch != _connectionEpoch) return;
           try {
@@ -640,12 +637,36 @@ class BridgeService implements BridgeServiceBase {
           }
         },
       );
+      unawaited(_markConnectedWhenReady(channel, epoch));
     } catch (e, st) {
       logger.error('WS connect failed', e, st);
       _setBridgeConnectionState(BridgeConnectionState.disconnected);
       _messageController.add(ErrorMessage(message: 'Connection failed: $e'));
       _scheduleReconnect();
     }
+  }
+
+  Future<void> _markConnectedWhenReady(
+    WebSocketChannel channel,
+    int epoch,
+  ) async {
+    try {
+      await channel.ready;
+    } catch (e, st) {
+      if (epoch != _connectionEpoch || _channel != channel) return;
+      logger.error('WS handshake failed', e, st);
+      _channel = null;
+      _setBridgeConnectionState(BridgeConnectionState.disconnected);
+      _messageController.add(ErrorMessage(message: 'Connection failed: $e'));
+      _scheduleReconnect();
+      return;
+    }
+
+    if (epoch != _connectionEpoch || _channel != channel) return;
+    _setBridgeConnectionState(BridgeConnectionState.connected);
+    _reconnectAttempt = 0;
+    send(ClientMessage.clientCapabilities());
+    _flushMessageQueue();
   }
 
   bool _sameBridgeTarget(String left, String right) {
@@ -808,6 +829,10 @@ class BridgeService implements BridgeServiceBase {
 
   void _scheduleReconnect() {
     if (_intentionalDisconnect || _lastUrl == null) return;
+    if (_connectionState == BridgeConnectionState.reconnecting &&
+        (_reconnectTimer?.isActive ?? false)) {
+      return;
+    }
 
     _reconnectAttempt++;
     final delay = min(pow(2, _reconnectAttempt).toInt(), _maxReconnectDelay);

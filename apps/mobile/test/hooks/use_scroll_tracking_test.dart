@@ -60,7 +60,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // With reverse list, offset 0 = bottom → isScrolledUp should be false
-      expect(result.isScrolledUp, isFalse);
+      expect(result.isScrolledUp.value, isFalse);
     });
 
     testWidgets('isScrolledUp false when near bottom', (tester) async {
@@ -91,7 +91,7 @@ void main() {
       // With reverse list, offset 50 is near bottom (offset 0)
       result.controller.jumpTo(50);
       await tester.pumpAndSettle();
-      expect(result.isScrolledUp, isFalse);
+      expect(result.isScrolledUp.value, isFalse);
     });
   });
 }

@@ -16,6 +16,41 @@ void main() {
       SharedPreferences.setMockInitialValues({});
     });
 
+    test(
+      'does not report connected before websocket handshake is ready',
+      () async {
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final sockets = <Socket>[];
+        final accepted = Completer<void>();
+        final outgoing = <ClientMessage>[];
+
+        server.listen((socket) {
+          sockets.add(socket);
+          if (!accepted.isCompleted) accepted.complete();
+        });
+
+        final bridge = BridgeService()..onOutgoingMessage = outgoing.add;
+        bridge.connect('ws://127.0.0.1:${server.port}');
+
+        await accepted.future.timeout(const Duration(seconds: 2));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        expect(
+          bridge.currentBridgeConnectionState,
+          BridgeConnectionState.connecting,
+        );
+        expect(bridge.isConnected, isFalse);
+        expect(outgoing, isEmpty);
+
+        bridge.disconnect();
+        for (final socket in sockets) {
+          socket.destroy();
+        }
+        await server.close();
+        bridge.dispose();
+      },
+    );
+
     test('disconnect clears last usage result cache', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final sockets = <WebSocket>[];

@@ -81,10 +81,14 @@ class ChatMessageList extends StatefulWidget {
 }
 
 class _ChatMessageListState extends State<ChatMessageList> {
+  double? _lastStreamingHeight;
+  double? _lockedStreamingHeight;
+
   @override
   void initState() {
     super.initState();
     widget.scrollToUserEntry?.addListener(_onScrollToUserEntry);
+    widget.scrollController.addListener(_onScrollPositionChanged);
   }
 
   @override
@@ -94,12 +98,33 @@ class _ChatMessageListState extends State<ChatMessageList> {
       oldWidget.scrollToUserEntry?.removeListener(_onScrollToUserEntry);
       widget.scrollToUserEntry?.addListener(_onScrollToUserEntry);
     }
+    if (oldWidget.scrollController != widget.scrollController) {
+      oldWidget.scrollController.removeListener(_onScrollPositionChanged);
+      widget.scrollController.addListener(_onScrollPositionChanged);
+    }
   }
 
   @override
   void dispose() {
     widget.scrollToUserEntry?.removeListener(_onScrollToUserEntry);
+    widget.scrollController.removeListener(_onScrollPositionChanged);
     super.dispose();
+  }
+
+  void _onScrollPositionChanged() {
+    if (!widget.scrollController.hasClients) return;
+    final shouldLockStreamingHeight =
+        widget.scrollController.position.pixels > 100;
+    if (shouldLockStreamingHeight) {
+      final lastHeight = _lastStreamingHeight;
+      if (_lockedStreamingHeight == null && lastHeight != null) {
+        setState(() => _lockedStreamingHeight = lastHeight);
+      }
+      return;
+    }
+    if (_lockedStreamingHeight != null) {
+      setState(() => _lockedStreamingHeight = null);
+    }
   }
 
   void _onScrollToUserEntry() {
@@ -190,30 +215,35 @@ class _ChatMessageListState extends State<ChatMessageList> {
     final totalCount = allEntries.length + (hasStreaming ? 1 : 0);
 
     return ListView.builder(
-        controller: widget.scrollController,
-        // Dismiss keyboard via platform channel (SystemChannels.textInput)
-        // instead of FocusScope.unfocus().  The latter triggers
-        // EditableText.setState() which rebuilds the TextField during
-        // the scroll gesture frame, causing jank.
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        reverse: true,
-        padding: EdgeInsets.only(top: 36, bottom: widget.bottomPadding),
-        scrollCacheExtent: _chatListCacheExtent,
-        itemCount: totalCount,
-        itemBuilder: (context, index) {
-          // index 0 = newest entry (bottom of chat)
-          // Map to actual entry index:
-          final entryIndex = totalCount - 1 - index;
+      controller: widget.scrollController,
+      // Dismiss keyboard via platform channel (SystemChannels.textInput)
+      // instead of FocusScope.unfocus().  The latter triggers
+      // EditableText.setState() which rebuilds the TextField during
+      // the scroll gesture frame, causing jank.
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      reverse: true,
+      padding: EdgeInsets.only(top: 36, bottom: widget.bottomPadding),
+      scrollCacheExtent: _chatListCacheExtent,
+      itemCount: totalCount,
+      itemBuilder: (context, index) {
+        // index 0 = newest entry (bottom of chat)
+        // Map to actual entry index:
+        final entryIndex = totalCount - 1 - index;
 
-          // Streaming entry is at totalCount - 1 (index 0 in reverse)
-          if (hasStreaming && entryIndex == allEntries.length) {
-            // Scoped BlocBuilder: only this widget rebuilds on streaming deltas
-            return BlocBuilder<StreamingStateCubit, StreamingState>(
-              builder: (context, streamingState) {
-                if (!streamingState.isStreaming) {
-                  return const SizedBox.shrink();
-                }
-                return ChatEntryWidget(
+        // Streaming entry is at totalCount - 1 (index 0 in reverse)
+        if (hasStreaming && entryIndex == allEntries.length) {
+          // Scoped BlocBuilder: only this widget rebuilds on streaming deltas
+          return BlocBuilder<StreamingStateCubit, StreamingState>(
+            builder: (context, streamingState) {
+              if (!streamingState.isStreaming) {
+                _lastStreamingHeight = null;
+                _lockedStreamingHeight = null;
+                return const SizedBox.shrink();
+              }
+              return _StreamingViewportAnchor(
+                onHeightChanged: _handleStreamingHeightChanged,
+                lockedHeight: _lockedStreamingHeight,
+                child: ChatEntryWidget(
                   entry: StreamingChatEntry(text: streamingState.text),
                   previous: null,
                   httpBaseUrl: widget.httpBaseUrl,
@@ -221,80 +251,85 @@ class _ChatMessageListState extends State<ChatMessageList> {
                   collapseToolResults: null,
                   hiddenToolUseIds: const {},
                   isCodex: widget.isCodex,
-                );
-              },
-            );
-          }
-
-          final entry = allEntries[entryIndex];
-          final previous = entryIndex > 0 ? allEntries[entryIndex - 1] : null;
-          final onForkMessage =
-              widget.isCodex &&
-                  shouldShowForkForAssistant(allEntries, entryIndex)
-              ? widget.onForkMessage
-              : null;
-
-          Widget child = ChatEntryWidget(
-            entry: entry,
-            previous: previous,
-            httpBaseUrl: widget.httpBaseUrl,
-            onRetryMessage: widget.onRetryMessage,
-            onRewindMessage: widget.onRewindMessage,
-            onForkMessage: onForkMessage,
-            collapseToolResults: widget.collapseToolResults,
-            resolvedPlanText: _resolvePlanText(entry),
-            hiddenToolUseIds: hiddenToolUseIds,
-            onFileTap: (filePath) {
-              final projectPath = widget.projectPath;
-              if (projectPath == null || projectPath.isEmpty) return;
-              openFilePeek(
-                context,
-                bridge: context.read<BridgeService>(),
-                projectPath: projectPath,
-                filePath: filePath,
-                projectFiles: context.read<FileListCubit>().state,
-                onResolvedFilePath: widget.onFilePeekOpened,
-              );
-            },
-            onImageTap: (user) {
-              final claudeSessionId = context
-                  .read<ChatSessionCubit>()
-                  .state
-                  .claudeSessionId;
-              final httpBaseUrl = widget.httpBaseUrl;
-              if (claudeSessionId == null ||
-                  claudeSessionId.isEmpty ||
-                  httpBaseUrl == null) {
-                return;
-              }
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => MessageImagesScreen(
-                    bridge: context.read<BridgeService>(),
-                    httpBaseUrl: httpBaseUrl,
-                    claudeSessionId: claudeSessionId,
-                    messageUuid: user.messageUuid!,
-                    imageCount: user.imageCount,
-                  ),
                 ),
               );
             },
-            isCodex: widget.isCodex,
           );
-          // Wrap with AutoScrollTag for scroll-to-index support.
-          // Use entryIndex (not reverse index) as the AutoScrollTag index.
-          child = AutoScrollTag(
-            key: ValueKey(_entryKey(entry, entryIndex)),
-            controller: widget.scrollController,
-            index: entryIndex,
-            child: child,
-          );
-          return _ChatEntryKeepAlive(
-            keepAlive: _shouldKeepAlive(entry),
-            child: child,
-          );
-        },
+        }
+
+        final entry = allEntries[entryIndex];
+        final previous = entryIndex > 0 ? allEntries[entryIndex - 1] : null;
+        final onForkMessage =
+            widget.isCodex && shouldShowForkForAssistant(allEntries, entryIndex)
+            ? widget.onForkMessage
+            : null;
+
+        Widget child = ChatEntryWidget(
+          entry: entry,
+          previous: previous,
+          httpBaseUrl: widget.httpBaseUrl,
+          onRetryMessage: widget.onRetryMessage,
+          onRewindMessage: widget.onRewindMessage,
+          onForkMessage: onForkMessage,
+          collapseToolResults: widget.collapseToolResults,
+          resolvedPlanText: _resolvePlanText(entry),
+          hiddenToolUseIds: hiddenToolUseIds,
+          onFileTap: (filePath) {
+            final projectPath = widget.projectPath;
+            if (projectPath == null || projectPath.isEmpty) return;
+            openFilePeek(
+              context,
+              bridge: context.read<BridgeService>(),
+              projectPath: projectPath,
+              filePath: filePath,
+              projectFiles: context.read<FileListCubit>().state,
+              onResolvedFilePath: widget.onFilePeekOpened,
+            );
+          },
+          onImageTap: (user) {
+            final claudeSessionId = context
+                .read<ChatSessionCubit>()
+                .state
+                .claudeSessionId;
+            final httpBaseUrl = widget.httpBaseUrl;
+            if (claudeSessionId == null ||
+                claudeSessionId.isEmpty ||
+                httpBaseUrl == null) {
+              return;
+            }
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => MessageImagesScreen(
+                  bridge: context.read<BridgeService>(),
+                  httpBaseUrl: httpBaseUrl,
+                  claudeSessionId: claudeSessionId,
+                  messageUuid: user.messageUuid!,
+                  imageCount: user.imageCount,
+                ),
+              ),
+            );
+          },
+          isCodex: widget.isCodex,
+        );
+        // Wrap with AutoScrollTag for scroll-to-index support.
+        // Use entryIndex (not reverse index) as the AutoScrollTag index.
+        child = AutoScrollTag(
+          key: ValueKey(_entryKey(entry, entryIndex)),
+          controller: widget.scrollController,
+          index: entryIndex,
+          child: child,
+        );
+        return _ChatEntryKeepAlive(
+          keepAlive: _shouldKeepAlive(entry),
+          child: child,
+        );
+      },
     );
+  }
+
+  void _handleStreamingHeightChanged(double height) {
+    if (_lockedStreamingHeight != null) return;
+    _lastStreamingHeight = height;
   }
 
   bool _shouldKeepAlive(ChatEntry entry) {
@@ -342,10 +377,7 @@ class _ChatEntryKeepAlive extends StatefulWidget {
   final bool keepAlive;
   final Widget child;
 
-  const _ChatEntryKeepAlive({
-    required this.keepAlive,
-    required this.child,
-  });
+  const _ChatEntryKeepAlive({required this.keepAlive, required this.child});
 
   @override
   State<_ChatEntryKeepAlive> createState() => _ChatEntryKeepAliveState();
@@ -368,5 +400,55 @@ class _ChatEntryKeepAliveState extends State<_ChatEntryKeepAlive>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
+  }
+}
+
+class _StreamingViewportAnchor extends StatefulWidget {
+  final Widget child;
+  final ValueChanged<double> onHeightChanged;
+  final double? lockedHeight;
+
+  const _StreamingViewportAnchor({
+    required this.child,
+    required this.onHeightChanged,
+    this.lockedHeight,
+  });
+
+  @override
+  State<_StreamingViewportAnchor> createState() =>
+      _StreamingViewportAnchorState();
+}
+
+class _StreamingViewportAnchorState extends State<_StreamingViewportAnchor> {
+  final _key = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
+  }
+
+  @override
+  void didUpdateWidget(covariant _StreamingViewportAnchor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reportHeight());
+  }
+
+  void _reportHeight() {
+    if (!mounted) return;
+    final box = _key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    widget.onHeightChanged(box.size.height);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lockedHeight = widget.lockedHeight;
+    final child = KeyedSubtree(key: _key, child: widget.child);
+    if (lockedHeight == null) return child;
+    return SizedBox(
+      height: lockedHeight,
+      child: ClipRect(child: child),
+    );
   }
 }

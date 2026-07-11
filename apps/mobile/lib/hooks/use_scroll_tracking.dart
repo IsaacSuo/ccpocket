@@ -54,8 +54,6 @@ ScrollTrackingResult useScrollTracking(String sessionId) {
       // The framework will settle the scroll position on the next frame.
       // This prevents the FAB from flashing when the Android notification
       // shade is pulled down/up.
-      // Note: when isScrolledUp is already true (user scrolled up), we don't
-      // guard — the user's intent takes priority over layout shifts.
       if (prevMax != null && !isScrolledUpRef.value) {
         final extentDelta = (pos.maxScrollExtent - prevMax).abs();
         if (extentDelta > _kExtentChangeTolerance) return;
