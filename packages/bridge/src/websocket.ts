@@ -1809,8 +1809,11 @@ export class BridgeWebSocketServer {
 
     const messageUuid = typeof msg.uuid === "string" ? msg.uuid : undefined;
     const providerSessionId = session.claudeSessionId;
+    const expectsEmbeddedImages =
+      typeof msg.imageCount === "number" && msg.imageCount > 0;
     if (
       refs.length === existingImages.length &&
+      expectsEmbeddedImages &&
       messageUuid &&
       providerSessionId
     ) {

@@ -2384,3 +2384,87 @@ describe("claude namedOnly optimization", () => {
     expect(result.sessions[0].name).toBe("SDK title");
   });
 });
+
+describe("Claude message image extraction", () => {
+  const oldHome = process.env.HOME;
+  let tempHome: string;
+
+  beforeEach(() => {
+    tempHome = mkdtempSync(join(tmpdir(), "ccpocket-test-claude-images-"));
+    process.env.HOME = tempHome;
+  });
+
+  afterEach(() => {
+    process.env.HOME = oldHome;
+    rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  it("indexes all user message images for a Claude session", async () => {
+    const sessionId = `claude-images-${Date.now()}`;
+    const projectDir = join(tempHome, ".claude", "projects", "-tmp-images");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, `${sessionId}.jsonl`),
+      [
+        claudeUserImageLine("user-1", "Zmlyc3Q="),
+        JSON.stringify({
+          type: "user",
+          uuid: "user-2",
+          message: { role: "user", content: [{ type: "text", text: "plain" }] },
+        }),
+        claudeUserImageLine("user-3", "dGhpcmQ="),
+      ].join("\n"),
+    );
+
+    await expect(extractMessageImages(sessionId, "user-1")).resolves.toEqual([
+      { base64: "Zmlyc3Q=", mimeType: "image/png" },
+    ]);
+    await expect(extractMessageImages(sessionId, "user-2")).resolves.toEqual([]);
+    await expect(extractMessageImages(sessionId, "user-3")).resolves.toEqual([
+      { base64: "dGhpcmQ=", mimeType: "image/png" },
+    ]);
+  });
+
+  it("invalidates the Claude image index when the JSONL changes", async () => {
+    const sessionId = `claude-images-refresh-${Date.now()}`;
+    const projectDir = join(tempHome, ".claude", "projects", "-tmp-images");
+    const jsonlPath = join(projectDir, `${sessionId}.jsonl`);
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(jsonlPath, claudeUserImageLine("user-1", "b2xk"));
+
+    await expect(extractMessageImages(sessionId, "user-1")).resolves.toEqual([
+      { base64: "b2xk", mimeType: "image/png" },
+    ]);
+
+    writeFileSync(
+      jsonlPath,
+      [
+        claudeUserImageLine("user-1", "bmV3LWltYWdl"),
+        claudeUserImageLine("user-2", "c2Vjb25k"),
+      ].join("\n"),
+    );
+
+    await expect(extractMessageImages(sessionId, "user-1")).resolves.toEqual([
+      { base64: "bmV3LWltYWdl", mimeType: "image/png" },
+    ]);
+    await expect(extractMessageImages(sessionId, "user-2")).resolves.toEqual([
+      { base64: "c2Vjb25k", mimeType: "image/png" },
+    ]);
+  });
+});
+
+function claudeUserImageLine(uuid: string, data: string): string {
+  return JSON.stringify({
+    type: "user",
+    uuid,
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data },
+        },
+      ],
+    },
+  });
+}
