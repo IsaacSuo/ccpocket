@@ -641,6 +641,44 @@ void main() {
     );
 
     test(
+      'codex user input echo confirms delivery when input ack is missing',
+      () async {
+        final cubit = createCubit('s1', provider: Provider.codex);
+        addTearDown(cubit.close);
+        mockBridge.emitMessage(
+          const StatusMessage(status: ProcessStatus.idle),
+          sessionId: 's1',
+        );
+        await Future.microtask(() {});
+
+        cubit.sendMessage('Echo-confirmed Codex input');
+        final payload =
+            jsonDecode(mockBridge.sentMessages.single.toJson())
+                as Map<String, dynamic>;
+        final clientMessageId = payload['clientMessageId'] as String;
+
+        mockBridge.emitMessage(
+          UserInputMessage(
+            text: 'Echo-confirmed Codex input',
+            clientMessageId: clientMessageId,
+            userMessageUuid: 'codex:user-turn:echo-confirmed',
+            timestamp: '2026-07-17T01:01:11.491Z',
+          ),
+          sessionId: 's1',
+        );
+        await Future.microtask(() {});
+        await Future<void>.delayed(const Duration(milliseconds: 650));
+
+        final users = cubit.state.entries.whereType<UserChatEntry>().toList();
+        expect(users, hasLength(1));
+        expect(users.single.text, 'Echo-confirmed Codex input');
+        expect(users.single.status, MessageStatus.sent);
+        expect(users.single.messageUuid, 'codex:user-turn:echo-confirmed');
+        expect(cubit.state.queuedInput, isNull);
+      },
+    );
+
+    test(
       'codex first input sent while starting is shown when ack arrives before delay',
       () async {
         final cubit = createCubit('s1', provider: Provider.codex);

@@ -291,6 +291,55 @@ void main() {
       expect(store.cachedHistorySeq('real'), 0);
     });
 
+    test('migrates explorer history without copying the old chat timeline', () {
+      final store = SessionRuntimeStore();
+      store.applyServerMessage(
+        'before-rewind',
+        const UserInputMessage(text: '测试2'),
+      );
+      store.applyServerMessage(
+        'before-rewind',
+        AssistantServerMessage(
+          message: AssistantMessage(
+            id: 'old-reply',
+            role: 'assistant',
+            content: const [TextContent(text: '测试2 reply')],
+            model: 'codex',
+          ),
+        ),
+      );
+      store.setExplorerHistory(
+        'before-rewind',
+        currentPath: '/repo/lib',
+        recentPeekedFiles: const ['lib/main.dart'],
+      );
+      store.applyServerMessage(
+        'after-rewind',
+        const UserInputMessage(text: '测试1'),
+      );
+
+      store.migrateExplorerHistory('before-rewind', 'after-rewind');
+
+      expect(
+        store
+            .messages('before-rewind')
+            .whereType<UserInputMessage>()
+            .single
+            .text,
+        '测试2',
+      );
+      expect(
+        store
+            .messages('after-rewind')
+            .whereType<UserInputMessage>()
+            .single
+            .text,
+        '测试1',
+      );
+      expect(store.getExplorerHistory('after-rewind').currentPath, '/repo/lib');
+      expect(store.getExplorerHistory('before-rewind').currentPath, isEmpty);
+    });
+
     test('trims old messages per session', () {
       final store = SessionRuntimeStore(maxMessagesPerSession: 2);
 

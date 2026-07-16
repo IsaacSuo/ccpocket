@@ -279,9 +279,13 @@ class ChatMessageHandler {
         // prompts, skill loading prompts).
         if (isSynthetic || isMeta) return const ChatStateUpdate();
         if (userMessageUuid != null) {
-          // SDK echoed user message with UUID — update existing entry's UUID
-          // so it becomes rewindable, instead of adding a duplicate.
+          // The Bridge only echoes this message after accepting the input.
+          // Treat the echo as a delivery confirmation as well as a UUID
+          // update, so a lost/delayed input_ack cannot leave the optimistic
+          // bubble looking queued until the first assistant response arrives.
           return ChatStateUpdate(
+            markUserMessagesSent: true,
+            userStatusClientMessageId: clientMessageId,
             userUuidUpdate: (
               text: text,
               uuid: userMessageUuid,

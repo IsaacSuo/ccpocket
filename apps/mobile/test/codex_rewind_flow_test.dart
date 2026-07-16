@@ -8,14 +8,40 @@ import 'package:ccpocket/models/messages.dart';
 import 'chat_screen/helpers/chat_test_helpers.dart';
 
 const _sessionId = 'codex-before-rewind';
-const _targetText = 'rewrite this request';
+const _targetText = '测试2';
 const _existingDraft = 'keep my current draft';
 
 Future<void> _startRewind(WidgetTester tester, MockBridgeService bridge) async {
   bridge.emitMessage(
+    const UserInputMessage(text: '测试1', userMessageUuid: 'codex:user-turn:1'),
+    sessionId: _sessionId,
+  );
+  bridge.emitMessage(
+    AssistantServerMessage(
+      message: AssistantMessage(
+        id: 'assistant-1',
+        role: 'assistant',
+        content: const [TextContent(text: '测试1 reply')],
+        model: 'codex',
+      ),
+    ),
+    sessionId: _sessionId,
+  );
+  bridge.emitMessage(
     const UserInputMessage(
       text: _targetText,
-      userMessageUuid: 'codex:user-turn:1',
+      userMessageUuid: 'codex:user-turn:2',
+    ),
+    sessionId: _sessionId,
+  );
+  bridge.emitMessage(
+    AssistantServerMessage(
+      message: AssistantMessage(
+        id: 'assistant-2',
+        role: 'assistant',
+        content: const [TextContent(text: '测试2 reply')],
+        model: 'codex',
+      ),
     ),
     sessionId: _sessionId,
   );
@@ -33,7 +59,13 @@ Future<void> _startRewind(WidgetTester tester, MockBridgeService bridge) async {
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const ValueKey('menu_message_history')));
   await tester.pumpAndSettle();
-  await tester.tap(find.byTooltip('Rewind to here'));
+  final targetTile = find.ancestor(
+    of: find.text(_targetText),
+    matching: find.byType(ListTile),
+  );
+  await tester.tap(
+    find.descendant(of: targetTile, matching: find.byTooltip('Rewind to here')),
+  );
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(const ValueKey('codex_rewind_confirm_button')));
   await tester.pump();
@@ -79,7 +111,7 @@ void main() {
           .toList();
       final rewind = sent.singleWhere((message) => message['type'] == 'rewind');
       expect(rewind['sessionId'], _sessionId);
-      expect(rewind['targetUuid'], 'codex:user-turn:1');
+      expect(rewind['targetUuid'], 'codex:user-turn:2');
 
       await tester.tap(find.byKey(const ValueKey('send_button')));
       await tester.pump();
@@ -149,7 +181,32 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    bridge.emitMessage(
+      HistoryMessage(
+        messages: [
+          const UserInputMessage(
+            text: '测试1',
+            userMessageUuid: 'codex:user-turn:1',
+          ),
+          AssistantServerMessage(
+            message: AssistantMessage(
+              id: 'assistant-1',
+              role: 'assistant',
+              content: const [TextContent(text: '测试1 reply')],
+              model: 'codex',
+            ),
+          ),
+          const StatusMessage(status: ProcessStatus.idle),
+        ],
+      ),
+      sessionId: 'codex-after-rewind',
+    );
+    await tester.pump();
+
     expect(_inputText(tester), _targetText);
     expect(find.text('Rewinding conversation...'), findsNothing);
+    expect(find.text('测试1'), findsOneWidget);
+    expect(find.text('测试1 reply'), findsOneWidget);
+    expect(find.text('测试2 reply'), findsNothing);
   });
 }

@@ -1702,7 +1702,7 @@ class BridgeService implements BridgeServiceBase {
   }
 
   void migrateExplorerHistory(String fromSessionId, String toSessionId) {
-    _runtimeStore.migrateSession(fromSessionId, toSessionId);
+    _runtimeStore.migrateExplorerHistory(fromSessionId, toSessionId);
   }
 
   void clearExplorerHistory(String sessionId) {

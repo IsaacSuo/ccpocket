@@ -192,6 +192,20 @@ class SessionRuntimeStore {
     _trim(target);
   }
 
+  void migrateExplorerHistory(String fromSessionId, String toSessionId) {
+    if (fromSessionId == toSessionId) return;
+    final source = _sessions[fromSessionId];
+    if (source == null) return;
+
+    final explorerHistory = source.explorerHistory;
+    source.explorerHistory = const ExplorerHistorySnapshot();
+    if (explorerHistory.currentPath.isNotEmpty ||
+        explorerHistory.recentPeekedFiles.isNotEmpty) {
+      _stateFor(toSessionId).explorerHistory = explorerHistory;
+    }
+    _removeIfEmpty(source);
+  }
+
   void clearSession(String sessionId) {
     _sessions.remove(sessionId);
   }

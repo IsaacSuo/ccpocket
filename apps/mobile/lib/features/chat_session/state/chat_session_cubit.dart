@@ -561,6 +561,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     final newProjectPath = update.projectPath?.trim().isNotEmpty == true
         ? update.projectPath
         : current.projectPath;
+    final echoedDeliveryClientMessageId =
+        originalMsg is UserInputMessage && originalMsg.userMessageUuid != null
+        ? originalMsg.clientMessageId
+        : null;
     if (originalMsg
         case InputAckMessage(:final clientMessageId) ||
             InputRejectedMessage(:final clientMessageId)
@@ -569,6 +573,13 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       _bridge.clearDeliveryPendingInput(
         sessionId,
         itemId: '$deliveryPendingQueuedInputPrefix$clientMessageId',
+      );
+    } else if (echoedDeliveryClientMessageId != null) {
+      _deliveryPendingTimers.remove(echoedDeliveryClientMessageId)?.cancel();
+      _bridge.clearDeliveryPendingInput(
+        sessionId,
+        itemId:
+            '$deliveryPendingQueuedInputPrefix$echoedDeliveryClientMessageId',
       );
     } else if (update.markUserMessagesSent) {
       for (final timer in _deliveryPendingTimers.values) {
@@ -583,7 +594,37 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         : (update.queuedInput ?? current.queuedInput);
     QueuedInputItem? deliveredPendingInput;
     String? deliveredPendingClientMessageId;
-    if (originalMsg is InputAckMessage && originalMsg.queued == false) {
+    final confirmedDeliveryClientMessageId = switch (originalMsg) {
+      InputAckMessage(:final clientMessageId, queued: false) => clientMessageId,
+      UserInputMessage(
+        :final clientMessageId,
+        userMessageUuid: final userMessageUuid?,
+      )
+          when userMessageUuid.isNotEmpty =>
+        clientMessageId,
+      _ => null,
+    };
+    if (confirmedDeliveryClientMessageId != null) {
+      final hiddenDeliveryPending = _deliveryPendingInputs.remove(
+        confirmedDeliveryClientMessageId,
+      );
+      final offlineMatch =
+          offlineQueuedClientMessageId(nextQueuedInput) ==
+          confirmedDeliveryClientMessageId;
+      final deliveryMatch =
+          deliveryPendingClientMessageId(nextQueuedInput) ==
+          confirmedDeliveryClientMessageId;
+      if (deliveryMatch) {
+        deliveredPendingInput = nextQueuedInput;
+        deliveredPendingClientMessageId = confirmedDeliveryClientMessageId;
+      } else if (hiddenDeliveryPending != null) {
+        deliveredPendingInput = hiddenDeliveryPending;
+        deliveredPendingClientMessageId = confirmedDeliveryClientMessageId;
+      }
+      if (offlineMatch || deliveryMatch) {
+        nextQueuedInput = null;
+      }
+    } else if (originalMsg is InputAckMessage && originalMsg.queued == false) {
       final hiddenDeliveryPending = originalMsg.clientMessageId != null
           ? _deliveryPendingInputs.remove(originalMsg.clientMessageId)
           : null;
@@ -622,6 +663,8 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       }
     }
     if (originalMsg is! InputAckMessage &&
+        !(originalMsg is UserInputMessage &&
+            confirmedDeliveryClientMessageId != null) &&
         update.markUserMessagesSent &&
         isDeliveryPendingQueuedInput(nextQueuedInput)) {
       deliveredPendingInput = nextQueuedInput;
@@ -633,6 +676,8 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         _deliveryPendingInputs.remove(deliveredPendingClientMessageId);
       }
     } else if (originalMsg is! InputAckMessage &&
+        !(originalMsg is UserInputMessage &&
+            confirmedDeliveryClientMessageId != null) &&
         update.markUserMessagesSent &&
         _deliveryPendingInputs.isNotEmpty) {
       final entry = _deliveryPendingInputs.entries.first;
