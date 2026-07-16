@@ -1,0 +1,81 @@
+name: Windows Custom Build
+
+on:
+  push:
+    branches:
+      - 'custom/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Read Flutter version from .mise.toml
+        id: mise
+        shell: pwsh
+        run: |
+          $mise = Get-Content .mise.toml -Raw
+          if ($mise -notmatch 'flutter\s*=\s*"([^"]+)"') {
+            Write-Error "Could not read Flutter version from .mise.toml"
+            exit 1
+          }
+          "flutter_version=$($Matches[1])" >> $env:GITHUB_OUTPUT
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ steps.mise.outputs.flutter_version }}
+          cache: false
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Resolve dependencies
+        run: flutter pub get
+        working-directory: apps/mobile
+
+      - name: Analyze
+        run: dart analyze .
+        working-directory: apps/mobile
+
+      - name: Test
+        run: flutter test
+        working-directory: apps/mobile
+
+      - name: Build Windows app
+        run: flutter build windows --release
+        working-directory: apps/mobile
+
+      - name: Smoke launch Windows app
+        shell: pwsh
+        run: |
+          $exe = "apps/mobile/build/windows/x64/runner/Release/ccpocket.exe"
+          if (!(Test-Path $exe)) {
+            Write-Error "Windows app executable not found at $exe"
+            exit 1
+          }
+
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 20
+          if (!$process.HasExited) {
+            Stop-Process -Id $process.Id -Force
+            Write-Host "Windows app stayed alive for the smoke window."
+            exit 0
+          }
+
+          Write-Error "Windows app exited before the smoke timeout with status $($process.ExitCode)"
+          exit 1
+
+      - name: Upload portable Windows bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: CC-Pocket-windows-x64-math-${{ github.run_number }}
+          path: apps/mobile/build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 7
