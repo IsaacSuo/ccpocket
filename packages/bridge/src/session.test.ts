@@ -274,6 +274,78 @@ describe("SessionManager codex path", () => {
     });
   });
 
+  it("rewinds Claude conversation along the target message parent chain", () => {
+    const projectPath = "/tmp/project-rewind-branch";
+    const claudeSessionId = "11111111-1111-4111-8111-111111111111";
+    const historyPath = join(
+      homedir(),
+      ".claude",
+      "projects",
+      pathToSlug(projectPath),
+      `${claudeSessionId}.jsonl`,
+    ).replaceAll("\\", "/");
+    fakeFiles.set(
+      historyPath,
+      [
+        JSON.stringify({
+          type: "assistant",
+          uuid: "assistant-on-target-branch",
+          parentUuid: "older-user",
+        }),
+        JSON.stringify({
+          type: "user",
+          uuid: "synthetic-user-on-other-branch",
+          parentUuid: "other-assistant",
+          isMeta: true,
+        }),
+        JSON.stringify({
+          type: "assistant",
+          uuid: "later-synthetic-assistant",
+          parentUuid: "synthetic-user-on-other-branch",
+        }),
+        JSON.stringify({
+          type: "user",
+          uuid: "target-user",
+          parentUuid: "assistant-on-target-branch",
+        }),
+      ].join("\n"),
+    );
+
+    const manager = new SessionManager(() => {});
+    const sessionId = manager.create(projectPath, {
+      sessionId: claudeSessionId,
+    });
+
+    let newSessionId: string | undefined;
+    manager.rewindConversation(sessionId, "target-user", (id) => {
+      newSessionId = id;
+    });
+
+    expect(newSessionId).toBeDefined();
+    expect(sdkInstances).toHaveLength(2);
+    expect(sdkInstances[1].start).toHaveBeenCalledWith(
+      projectPath,
+      expect.objectContaining({
+        sessionId: claudeSessionId,
+        forkSession: true,
+        resumeSessionAt: "assistant-on-target-branch",
+      }),
+    );
+  });
+
+  it("does not destroy a Claude session for an invalid rewind target", () => {
+    const manager = new SessionManager(() => {});
+    const sessionId = manager.create("/tmp/project-invalid-rewind", {
+      sessionId: "22222222-2222-4222-8222-222222222222",
+    });
+
+    expect(() =>
+      manager.rewindConversation(sessionId, "missing-user", () => {}),
+    ).toThrow("was not found in the current Claude session");
+    expect(manager.get(sessionId)).toBeDefined();
+    expect(sdkInstances).toHaveLength(1);
+  });
+
   it("returns a history snapshot when the requested sequence was compacted", () => {
     const manager = new SessionManager(() => {});
     const sessionId = manager.create("/tmp/project-history-snapshot");

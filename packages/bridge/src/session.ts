@@ -1489,7 +1489,13 @@ export class SessionManager {
       throw new Error("Session has no Claude session ID");
     }
 
-    const assistantUuid = this.findAssistantUuidBeforeUser(session, targetUuid);
+    const rewindTarget = this.findAssistantUuidBeforeUser(session, targetUuid);
+    if (!rewindTarget.found) {
+      throw new Error(
+        `User message ${targetUuid} was not found in the current Claude session`,
+      );
+    }
+    const assistantUuid = rewindTarget.assistantUuid;
 
     const projectPath = session.projectPath;
     const permissionMode = (session.process as SdkProcess).permissionMode;
@@ -1508,6 +1514,7 @@ export class SessionManager {
         ? {
             sessionId: claudeSessionId,
             permissionMode,
+            forkSession: true,
             resumeSessionAt: assistantUuid,
           }
         : { permissionMode },
@@ -1528,8 +1535,58 @@ export class SessionManager {
   private findAssistantUuidBeforeUser(
     session: SessionInfo,
     userUuid: string,
-  ): string | null {
-    // 1. Search in-memory history
+  ): { found: boolean; assistantUuid: string | null } {
+    // Claude transcripts can contain branches and repeated records. File order
+    // is therefore not conversation order; follow parentUuid from the selected
+    // user message to find the assistant boundary on the same branch.
+    const historyPath = this.findHistoryJsonlPath(session);
+    if (historyPath) {
+      try {
+        const entries = new Map<
+          string,
+          { type?: string; parentUuid?: string | null; isMeta?: boolean }
+        >();
+        const raw = readFileSync(historyPath, "utf-8");
+        for (const line of raw.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line) as {
+              type?: string;
+              uuid?: string;
+              parentUuid?: string | null;
+              isMeta?: boolean;
+            };
+            if (entry.uuid) entries.set(entry.uuid, entry);
+          } catch {
+            // Ignore malformed transcript records.
+          }
+        }
+
+        const target = entries.get(userUuid);
+        if (target) {
+          if (target.type !== "user" || target.isMeta === true) {
+            return { found: false, assistantUuid: null };
+          }
+
+          const visited = new Set<string>([userUuid]);
+          let ancestorUuid = target.parentUuid;
+          while (ancestorUuid && !visited.has(ancestorUuid)) {
+            visited.add(ancestorUuid);
+            const ancestor = entries.get(ancestorUuid);
+            if (!ancestor) break;
+            if (ancestor.type === "assistant") {
+              return { found: true, assistantUuid: ancestorUuid };
+            }
+            ancestorUuid = ancestor.parentUuid;
+          }
+          return { found: true, assistantUuid: null };
+        }
+      } catch {
+        // Fall back to the in-memory snapshots below.
+      }
+    }
+
+    // Search in-memory history, which is linear for messages from this process.
     let previousAssistantUuid: string | null = null;
     for (const msg of session.history) {
       if (msg.type === "assistant" && "messageUuid" in msg && msg.messageUuid) {
@@ -1541,11 +1598,11 @@ export class SessionManager {
         "userMessageUuid" in msg &&
         msg.userMessageUuid === userUuid
       ) {
-        return previousAssistantUuid;
+        return { found: true, assistantUuid: previousAssistantUuid };
       }
     }
 
-    // 2. Search pastMessages (disk history with uuid field)
+    // Search the normalized disk history when the raw transcript is unavailable.
     if (session.pastMessages) {
       previousAssistantUuid = null;
       for (const raw of session.pastMessages) {
@@ -1555,12 +1612,12 @@ export class SessionManager {
           continue;
         }
         if (pm.role === "user" && pm.uuid === userUuid) {
-          return previousAssistantUuid;
+          return { found: true, assistantUuid: previousAssistantUuid };
         }
       }
     }
 
-    return null;
+    return { found: false, assistantUuid: null };
   }
 
   /**
