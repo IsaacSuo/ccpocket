@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
+
+import '../lib/purchases_flutter.dart';
 
 void main() {
   test('exposes subscription product fields used by the no-GMS app', () {
