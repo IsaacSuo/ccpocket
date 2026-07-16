@@ -14,10 +14,11 @@ import '../../theme/code_text_style.dart';
 import '../../theme/markdown_style.dart'
     show
         buildMarkdownStyle,
-        colorCodeInlineSyntaxes,
         handleMarkdownLink,
         highlightToTextSpans,
-        markdownBuilders;
+        markdownBlockSyntaxes,
+        markdownBuilders,
+        markdownInlineSyntaxes;
 import '../../widgets/bubbles/image_preview.dart';
 import '../../widgets/workspace_pane_chrome.dart';
 
@@ -458,7 +459,8 @@ class _FilePeekContentState extends State<_FilePeekContent> {
       selectable: true,
       styleSheet: buildMarkdownStyle(context),
       onTapLink: handleMarkdownLink,
-      inlineSyntaxes: colorCodeInlineSyntaxes,
+      inlineSyntaxes: markdownInlineSyntaxes,
+      blockSyntaxes: markdownBlockSyntaxes,
       builders: markdownBuilders,
       padding: const EdgeInsets.all(16),
     );

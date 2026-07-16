@@ -96,7 +96,8 @@ class _PlanViewMode extends StatelessWidget {
         selectable: true,
         styleSheet: buildMarkdownStyle(context),
         onTapLink: handleMarkdownLink,
-        inlineSyntaxes: colorCodeInlineSyntaxes,
+        inlineSyntaxes: markdownInlineSyntaxes,
+        blockSyntaxes: markdownBlockSyntaxes,
         builders: markdownBuilders,
       ),
     );

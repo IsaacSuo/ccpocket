@@ -269,8 +269,9 @@ class _DefaultLayout extends StatelessWidget {
                     FilePathSyntax(knownPathSuffixes: fileSuffixes),
                     BareFilePathSyntax(knownPathSuffixes: fileSuffixes),
                   ],
-                  ...colorCodeInlineSyntaxes,
+                  ...markdownInlineSyntaxes,
                 ],
+                blockSyntaxes: markdownBlockSyntaxes,
                 builders: {
                   if (onFileTap != null)
                     'filePath': FilePathBuilder(onTap: onFileTap),

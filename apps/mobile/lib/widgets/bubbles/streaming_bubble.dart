@@ -109,10 +109,7 @@ class _StreamingBubbleState extends State<StreamingBubble>
       _throttleTimer = Timer(Duration.zero, _flushPendingUpdate);
     } else {
       // Still inside the throttle window — defer to the end of the window.
-      _throttleTimer = Timer(
-        _throttleDuration - elapsed,
-        _flushPendingUpdate,
-      );
+      _throttleTimer = Timer(_throttleDuration - elapsed, _flushPendingUpdate);
     }
   }
 
@@ -189,7 +186,8 @@ class _StreamingBubbleState extends State<StreamingBubble>
           data: data,
           styleSheet: styleSheet,
           onTapLink: handleMarkdownLink,
-          inlineSyntaxes: colorCodeInlineSyntaxes,
+          inlineSyntaxes: markdownInlineSyntaxes,
+          blockSyntaxes: markdownBlockSyntaxes,
           builders: markdownBuilders,
         );
         if (i < _closedWidgets.length) {
@@ -226,15 +224,13 @@ class _StreamingBubbleState extends State<StreamingBubble>
               data: _cachedOpenTail,
               styleSheet: styleSheet,
               onTapLink: handleMarkdownLink,
-              inlineSyntaxes: colorCodeInlineSyntaxes,
+              inlineSyntaxes: markdownInlineSyntaxes,
+              blockSyntaxes: markdownBlockSyntaxes,
               builders: markdownBuilders,
             ),
           FadeTransition(
             opacity: _cursorController,
-            child: const Text(
-              '▍',
-              style: TextStyle(fontSize: 16, height: 1),
-            ),
+            child: const Text('▍', style: TextStyle(fontSize: 16, height: 1)),
           ),
         ],
       ),

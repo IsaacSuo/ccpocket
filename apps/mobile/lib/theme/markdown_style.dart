@@ -13,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../widgets/google_search_text_selection.dart';
 import 'app_theme.dart';
 import 'code_text_style.dart';
+import 'markdown_math.dart';
 
 final _syntaxHighlight = _SyntaxHighlightRegistry();
 final markdownPerformanceProbe = MarkdownPerformanceProbe();
@@ -655,13 +656,20 @@ Color? _parseHexColor(String hex) {
   }
 }
 
-/// Custom inline syntaxes for color code preview.
+/// Custom inline syntaxes shared by app Markdown surfaces.
 /// Shared instance to avoid recreating on every MarkdownBody build.
-final colorCodeInlineSyntaxes = <md.InlineSyntax>[ColorCodeSyntax()];
+final markdownInlineSyntaxes = <md.InlineSyntax>[
+  ...markdownMathInlineSyntaxes,
+  ColorCodeSyntax(),
+];
 
-/// Custom element builders for color code preview and fenced code blocks.
+/// Custom block syntaxes shared by app Markdown surfaces.
+final markdownBlockSyntaxes = <md.BlockSyntax>[...markdownMathBlockSyntaxes];
+
+/// Custom builders for math, color previews, and fenced code blocks.
 /// Shared instance to avoid recreating on every MarkdownBody build.
 final markdownBuilders = <String, MarkdownElementBuilder>{
+  ...markdownMathBuilders,
   'colorCode': ColorCodeBuilder(),
   'pre': FencedCodeBlockBuilder(),
 };
