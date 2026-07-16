@@ -43,7 +43,7 @@ jobs:
       - name: Analyze
         # Keep all diagnostics visible, but only analyzer errors should block
         # this custom build; the upstream baseline contains warnings and infos.
-        run: dart analyze --no-fatal-warnings --no-fatal-infos .
+        run: dart analyze --no-fatal-warnings .
         working-directory: apps/mobile
 
       - name: Test
