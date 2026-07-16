@@ -5434,6 +5434,7 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     expect(sends.find((m: any) => m.type === "rewind_result")).toMatchObject({
       success: true,
       mode: "conversation",
+      sessionId,
     });
     const newCreated = sends.find(
       (m: any) => m.type === "system" && m.subtype === "session_created",
@@ -5591,6 +5592,7 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     expect(result).toMatchObject({
       success: false,
       mode: "code",
+      sessionId: created.sessionId,
       error: "Codex only supports conversation rewind",
     });
 

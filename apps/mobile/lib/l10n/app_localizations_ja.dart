@@ -1063,6 +1063,17 @@ class AppLocalizationsJa extends AppLocalizations {
       'このメッセージの直前までチャットを戻し、メッセージを入力欄に戻します。ファイル変更はそのまま残ります。';
 
   @override
+  String get codexRewindInProgress => '会話を巻き戻しています...';
+
+  @override
+  String get codexRewindFailedWithoutDetails => '会話を巻き戻せませんでした。';
+
+  @override
+  String codexRewindFailed(Object error) {
+    return '会話を巻き戻せませんでした: $error';
+  }
+
+  @override
   String get fork => '分岐';
 
   @override

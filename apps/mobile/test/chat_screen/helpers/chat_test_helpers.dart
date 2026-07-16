@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:ccpocket/features/claude_session/claude_session_screen.dart';
+import 'package:ccpocket/features/codex_session/codex_session_screen.dart';
 import 'package:ccpocket/models/messages.dart';
 import 'package:ccpocket/providers/bridge_cubits.dart';
 import 'package:ccpocket/services/bridge_service.dart';
@@ -163,6 +164,48 @@ Future<Widget> buildTestChatScreen({
   sessionId: sessionId,
   projectPath: projectPath,
 );
+
+Future<Widget> buildTestCodexSessionScreen({
+  required MockBridgeService bridge,
+  String sessionId = testSessionId,
+  String? projectPath,
+}) async {
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+  return MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    locale: const Locale('en'),
+    theme: AppTheme.darkTheme,
+    home: MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<BridgeService>.value(value: bridge),
+        RepositoryProvider<DraftService>.value(value: DraftService(prefs)),
+        RepositoryProvider<PromptHistoryService>.value(
+          value: PromptHistoryService(DatabaseService()),
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<ConnectionCubit>(
+            create: (_) => ConnectionCubit(
+              BridgeConnectionState.connected,
+              bridge.connectionStatus,
+            ),
+          ),
+          BlocProvider<FileListCubit>(
+            create: (_) => FileListCubit(const <String>[], bridge.fileList),
+          ),
+          BlocProvider<SettingsCubit>(create: (_) => SettingsCubit(prefs)),
+        ],
+        child: CodexSessionScreen(
+          sessionId: sessionId,
+          projectPath: projectPath,
+        ),
+      ),
+    ),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Message builder helpers

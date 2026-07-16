@@ -415,6 +415,14 @@
   "rewindCannotRewindFiles": "파일을 되돌릴 수 없습니다",
   "codexRewindConfirmTitle": "대화를 되돌릴까요?",
   "codexRewindConfirmBody": "채팅을 이 메시지 직전으로 복원하고, 메시지를 입력창에 다시 넣습니다. 파일 변경 사항은 그대로 유지됩니다.",
+  "codexRewindInProgress": "대화를 되돌리는 중...",
+  "codexRewindFailedWithoutDetails": "대화를 되돌릴 수 없습니다.",
+  "codexRewindFailed": "대화를 되돌릴 수 없습니다: {error}",
+  "@codexRewindFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "fork": "분기",
   "forkConversation": "대화 분기",
   "forkConversationTitle": "대화를 분기할까요?",

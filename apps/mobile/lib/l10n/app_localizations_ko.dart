@@ -1079,6 +1079,17 @@ class AppLocalizationsKo extends AppLocalizations {
       '채팅을 이 메시지 직전으로 복원하고, 메시지를 입력창에 다시 넣습니다. 파일 변경 사항은 그대로 유지됩니다.';
 
   @override
+  String get codexRewindInProgress => '대화를 되돌리는 중...';
+
+  @override
+  String get codexRewindFailedWithoutDetails => '대화를 되돌릴 수 없습니다.';
+
+  @override
+  String codexRewindFailed(Object error) {
+    return '대화를 되돌릴 수 없습니다: $error';
+  }
+
+  @override
   String get fork => '분기';
 
   @override

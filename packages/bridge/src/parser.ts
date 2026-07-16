@@ -610,6 +610,7 @@ export type ServerMessage =
       type: "rewind_result";
       success: boolean;
       mode: "conversation" | "code" | "both";
+      sessionId: string;
       error?: string;
     }
   | {

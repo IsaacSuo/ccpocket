@@ -1070,6 +1070,7 @@ sealed class ServerMessage {
       'rewind_result' => RewindResultMessage(
         success: json['success'] as bool? ?? false,
         mode: json['mode'] as String? ?? 'both',
+        sessionId: json['sessionId'] as String?,
         error: json['error'] as String?,
       ),
       'input_ack' => InputAckMessage(
@@ -2630,10 +2631,12 @@ class RewindPreviewMessage implements ServerMessage {
 class RewindResultMessage implements ServerMessage {
   final bool success;
   final String mode;
+  final String? sessionId;
   final String? error;
   const RewindResultMessage({
     required this.success,
     required this.mode,
+    this.sessionId,
     this.error,
   });
 }

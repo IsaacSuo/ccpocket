@@ -1117,6 +1117,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Restore the chat to just before this message and put the message back in the composer. File changes stay untouched.';
 
   @override
+  String get codexRewindInProgress => 'Rewinding conversation...';
+
+  @override
+  String get codexRewindFailedWithoutDetails =>
+      'Could not rewind the conversation.';
+
+  @override
+  String codexRewindFailed(Object error) {
+    return 'Could not rewind the conversation: $error';
+  }
+
+  @override
   String get fork => 'Fork';
 
   @override

@@ -2064,6 +2064,24 @@ abstract class AppLocalizations {
   /// **'このメッセージの直前までチャットを戻し、メッセージを入力欄に戻します。ファイル変更はそのまま残ります。'**
   String get codexRewindConfirmBody;
 
+  /// No description provided for @codexRewindInProgress.
+  ///
+  /// In ja, this message translates to:
+  /// **'会話を巻き戻しています...'**
+  String get codexRewindInProgress;
+
+  /// No description provided for @codexRewindFailedWithoutDetails.
+  ///
+  /// In ja, this message translates to:
+  /// **'会話を巻き戻せませんでした。'**
+  String get codexRewindFailedWithoutDetails;
+
+  /// No description provided for @codexRewindFailed.
+  ///
+  /// In ja, this message translates to:
+  /// **'会話を巻き戻せませんでした: {error}'**
+  String codexRewindFailed(Object error);
+
   /// No description provided for @fork.
   ///
   /// In ja, this message translates to:

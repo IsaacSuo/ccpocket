@@ -41,9 +41,17 @@ class ResultChip extends StatelessWidget {
       case 'stopped':
         label = 'Stopped';
         chipColor = appColors.subtleText.withValues(alpha: 0.2);
-      default:
-        label = 'Error: ${message.error ?? 'unknown'}';
+      case 'interrupted':
+        label = 'Interrupted';
+        chipColor = appColors.subtleText.withValues(alpha: 0.2);
+      case 'error':
+        final error = message.error?.trim();
+        label = error == null || error.isEmpty ? 'Error' : 'Error: $error';
         chipColor = appColors.errorChip;
+      default:
+        final subtype = message.subtype.trim();
+        label = subtype.isEmpty ? 'Finished' : _humanizeSubtype(subtype);
+        chipColor = appColors.subtleText.withValues(alpha: 0.2);
     }
 
     // Only show result text for non-success cases (errors, stopped).
@@ -104,4 +112,13 @@ class ResultChip extends StatelessWidget {
       ],
     );
   }
+}
+
+String _humanizeSubtype(String subtype) {
+  final words = subtype
+      .split(RegExp(r'[_-]+'))
+      .where((word) => word.isNotEmpty);
+  return words
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .join(' ');
 }

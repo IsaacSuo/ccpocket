@@ -1075,6 +1075,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Codex only supports conversation rewind",
       });
       return;
@@ -1086,6 +1087,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: `Session ${sessionId} not found`,
       });
       return;
@@ -1099,6 +1101,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Session is not a Codex session",
       });
       return;
@@ -1108,6 +1111,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Cannot rewind while Codex is running",
       });
       return;
@@ -1117,6 +1121,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Cannot rewind while Codex has queued input",
       });
       return;
@@ -1129,6 +1134,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Invalid Codex rewind target",
       });
       return;
@@ -1140,6 +1146,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "Invalid Codex rewind target",
       });
       return;
@@ -1151,6 +1158,7 @@ export class BridgeWebSocketServer {
         type: "rewind_result",
         success: false,
         mode,
+        sessionId,
         error: "No Codex thread ID available for rewind",
       });
       return;
@@ -1190,6 +1198,7 @@ export class BridgeWebSocketServer {
       type: "rewind_result",
       success: true,
       mode,
+      sessionId,
     });
     this.send(
       ws,
@@ -5449,6 +5458,7 @@ export class BridgeWebSocketServer {
             type: "rewind_result",
             success: false,
             mode: msg.mode,
+            sessionId: msg.sessionId,
             error: `Session ${msg.sessionId} not found`,
           });
           return;
@@ -5460,6 +5470,7 @@ export class BridgeWebSocketServer {
             type: "rewind_result",
             success: false,
             mode: msg.mode,
+            sessionId: msg.sessionId,
             error: errMsg,
           });
         };
@@ -5480,12 +5491,14 @@ export class BridgeWebSocketServer {
                   type: "rewind_result",
                   success: true,
                   mode: "code",
+                  sessionId: msg.sessionId,
                 });
               } else {
                 this.send(ws, {
                   type: "rewind_result",
                   success: false,
                   mode: "code",
+                  sessionId: msg.sessionId,
                   error: result.error ?? "Cannot rewind files",
                 });
               }
@@ -5503,6 +5516,7 @@ export class BridgeWebSocketServer {
                   type: "rewind_result",
                   success: true,
                   mode: "conversation",
+                  sessionId: msg.sessionId,
                 });
                 // Notify the new session ID
                 const newSession = this.sessionManager.get(newSessionId);
@@ -5537,6 +5551,7 @@ export class BridgeWebSocketServer {
                   type: "rewind_result",
                   success: false,
                   mode: "both",
+                  sessionId: msg.sessionId,
                   error: result.error ?? "Cannot rewind files",
                 });
                 return;
@@ -5551,6 +5566,7 @@ export class BridgeWebSocketServer {
                       type: "rewind_result",
                       success: true,
                       mode: "both",
+                      sessionId: msg.sessionId,
                     });
                     const newSession = this.sessionManager.get(newSessionId);
                     const rewindPermMode2 =

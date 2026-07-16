@@ -698,6 +698,36 @@ void main() {
     });
   });
 
+  group('Rewind result message parsing', () {
+    test('parses the originating session id', () {
+      final msg = ServerMessage.fromJson({
+        'type': 'rewind_result',
+        'success': true,
+        'mode': 'conversation',
+        'sessionId': 'session-before-rewind',
+      });
+
+      expect(msg, isA<RewindResultMessage>());
+      final result = msg as RewindResultMessage;
+      expect(result.success, isTrue);
+      expect(result.mode, 'conversation');
+      expect(result.sessionId, 'session-before-rewind');
+    });
+
+    test('keeps compatibility with an older Bridge without a session id', () {
+      final msg = ServerMessage.fromJson({
+        'type': 'rewind_result',
+        'success': false,
+        'mode': 'conversation',
+        'error': 'rewind failed',
+      });
+
+      final result = msg as RewindResultMessage;
+      expect(result.sessionId, isNull);
+      expect(result.error, 'rewind failed');
+    });
+  });
+
   group('InputAck message parsing', () {
     test('parses queued=true', () {
       final msg = ServerMessage.fromJson({

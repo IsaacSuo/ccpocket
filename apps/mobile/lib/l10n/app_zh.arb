@@ -449,6 +449,14 @@
   "rewindCannotRewindFiles": "无法回退文件",
   "codexRewindConfirmTitle": "回退对话？",
   "codexRewindConfirmBody": "将聊天恢复到此消息之前，并把该消息放回输入框。文件更改会保留。",
+  "codexRewindInProgress": "正在回退对话...",
+  "codexRewindFailedWithoutDetails": "无法回退对话。",
+  "codexRewindFailed": "无法回退对话：{error}",
+  "@codexRewindFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "fork": "分叉",
   "forkConversation": "分叉对话",
   "forkConversationTitle": "分叉对话？",

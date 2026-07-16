@@ -431,6 +431,14 @@
   "rewindCannotRewindFiles": "Cannot rewind files",
   "codexRewindConfirmTitle": "Rewind conversation?",
   "codexRewindConfirmBody": "Restore the chat to just before this message and put the message back in the composer. File changes stay untouched.",
+  "codexRewindInProgress": "Rewinding conversation...",
+  "codexRewindFailedWithoutDetails": "Could not rewind the conversation.",
+  "codexRewindFailed": "Could not rewind the conversation: {error}",
+  "@codexRewindFailed": {
+    "placeholders": {
+      "error": {}
+    }
+  },
   "fork": "Fork",
   "forkConversation": "Fork conversation",
   "forkConversationTitle": "Fork conversation?",

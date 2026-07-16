@@ -63,6 +63,33 @@ const _fileListRefreshToolNames = {
   'Bash',
 };
 
+@visibleForTesting
+class CodexRewindCoordinator extends ChangeNotifier {
+  String? _messageText;
+
+  bool get isPending => _messageText != null;
+
+  bool begin(String messageText) {
+    if (isPending) return false;
+    _messageText = messageText;
+    notifyListeners();
+    return true;
+  }
+
+  bool accepts(RewindResultMessage result, {required String sessionId}) {
+    return isPending &&
+        (result.sessionId == null || result.sessionId == sessionId);
+  }
+
+  String? complete(RewindResultMessage result, {required String sessionId}) {
+    if (!accepts(result, sessionId: sessionId)) return null;
+    if (result.success) return _messageText;
+    _messageText = null;
+    notifyListeners();
+    return null;
+  }
+}
+
 class _NoopListenable implements Listenable {
   const _NoopListenable();
 
@@ -564,6 +591,9 @@ class _CodexChatBody extends HookWidget {
     useEffect(() => chatInputController.dispose, [chatInputController]);
     final planFeedbackController = useTextEditingController();
     final draftService = context.read<DraftService>();
+    final rewindCoordinator = useMemoized(CodexRewindCoordinator.new);
+    useListenable(rewindCoordinator);
+    useEffect(() => rewindCoordinator.dispose, [rewindCoordinator]);
 
     // --- Draft persistence: restore on mount, auto-save on change ---
     useEffect(() {
@@ -628,15 +658,18 @@ class _CodexChatBody extends HookWidget {
         httpBaseUrl: context.read<BridgeService>().httpBaseUrl,
         projectPath: effectiveProjectPath,
         onRetryMessage: null,
-        onRewindMessage: (entry) {
-          _showCodexRewindDialog(
-            context,
-            entry,
-            sessionId: sessionId,
-            inputController: chatInputController,
-            draftService: draftService,
-          );
-        },
+        onRewindMessage: rewindCoordinator.isPending
+            ? null
+            : (entry) {
+                _showCodexRewindDialog(
+                  context,
+                  entry,
+                  sessionId: sessionId,
+                  inputController: chatInputController,
+                  draftService: draftService,
+                  rewindCoordinator: rewindCoordinator,
+                );
+              },
         onForkMessage: (message) {
           unawaited(_forkCodexFromAssistant(context, message));
         },
@@ -646,8 +679,41 @@ class _CodexChatBody extends HookWidget {
         isCodex: true,
         onFilePeekOpened: context.read<ChatSessionCubit>().recordPeekedFile,
       ),
-      [sessionId],
+      [sessionId, rewindCoordinator.isPending],
     );
+
+    useEffect(() {
+      final sub = bridge.messagesForSession(sessionId).listen((msg) {
+        if (msg is! RewindResultMessage ||
+            !rewindCoordinator.accepts(msg, sessionId: sessionId)) {
+          return;
+        }
+        final restoredText = rewindCoordinator.complete(
+          msg,
+          sessionId: sessionId,
+        );
+        if (msg.success) {
+          if (restoredText != null) {
+            _restoreRewindMessageToComposer(
+              inputController: chatInputController,
+              draftService: draftService,
+              sessionId: sessionId,
+              text: restoredText,
+            );
+          }
+          return;
+        }
+        if (!context.mounted) return;
+        final error = msg.error?.trim();
+        final failureText = error == null || error.isEmpty
+            ? l.codexRewindFailedWithoutDetails
+            : l.codexRewindFailed(error);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(failureText)));
+      });
+      return sub.cancel;
+    }, [sessionId, rewindCoordinator]);
     final gitBadgeTone = _gitBadgeToneOf(
       context,
       sessionId,
@@ -1076,6 +1142,7 @@ class _CodexChatBody extends HookWidget {
                               sessionId,
                               chatInputController,
                               draftService,
+                              rewindCoordinator,
                             );
                           },
                         ),
@@ -1121,6 +1188,7 @@ class _CodexChatBody extends HookWidget {
                                 sessionId,
                                 chatInputController,
                                 draftService,
+                                rewindCoordinator,
                               );
                             case 'screenshot':
                               if (effectiveProjectPath == null) return;
@@ -1384,13 +1452,33 @@ class _CodexChatBody extends HookWidget {
                           .cancelQueuedInput(queuedInput),
                     ),
                 if (approval is ApprovalNone)
+                  if (rewindCoordinator.isPending)
+                    Padding(
+                      key: const ValueKey('codex_rewind_progress'),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Row(
+                        children: [
+                          const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            l.codexRewindInProgress,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                if (approval is ApprovalNone)
                   ChatInputWithOverlays(
                     sessionId: sessionId,
                     status: status,
                     onScrollToBottom: scroll.scrollToBottom,
                     inputController: chatInputController,
                     hintText: l.codexMessagePlaceholder,
-                    inputBlocked: queuedInput != null,
+                    inputBlocked:
+                        queuedInput != null || rewindCoordinator.isPending,
                     initialDiffSelection: diffSelectionFromNav.value,
                     onDiffSelectionConsumed: () {},
                     onDiffSelectionCleared: () =>
@@ -1697,6 +1785,7 @@ void _showUserMessageHistory(
   String sessionId,
   TextEditingController inputController,
   DraftService draftService,
+  CodexRewindCoordinator rewindCoordinator,
 ) {
   final cubit = context.read<ChatSessionCubit>();
   final messages = cubit.allUserMessages;
@@ -1711,13 +1800,16 @@ void _showUserMessageHistory(
       onScrollToMessage: (msg) {
         scrollToUserEntry.value = msg;
       },
-      onRewindMessage: (msg) => _showCodexRewindDialog(
-        context,
-        msg,
-        sessionId: sessionId,
-        inputController: inputController,
-        draftService: draftService,
-      ),
+      onRewindMessage: rewindCoordinator.isPending
+          ? null
+          : (msg) => _showCodexRewindDialog(
+              context,
+              msg,
+              sessionId: sessionId,
+              inputController: inputController,
+              draftService: draftService,
+              rewindCoordinator: rewindCoordinator,
+            ),
     ),
   );
 }
@@ -1728,6 +1820,7 @@ void _showCodexRewindDialog(
   required String sessionId,
   required TextEditingController inputController,
   required DraftService draftService,
+  required CodexRewindCoordinator rewindCoordinator,
 }) {
   final cubit = context.read<ChatSessionCubit>();
 
@@ -1739,13 +1832,8 @@ void _showCodexRewindDialog(
       return CodexRewindDialog(
         messageText: message.text,
         onConfirm: () {
+          if (!rewindCoordinator.begin(message.text)) return;
           Navigator.of(dialogContext).pop();
-          _restoreRewindMessageToComposer(
-            inputController: inputController,
-            draftService: draftService,
-            sessionId: sessionId,
-            text: message.text,
-          );
           cubit.rewind(message.messageUuid!, 'conversation');
         },
       );

@@ -1051,6 +1051,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get codexRewindConfirmBody => '将聊天恢复到此消息之前，并把该消息放回输入框。文件更改会保留。';
 
   @override
+  String get codexRewindInProgress => '正在回退对话...';
+
+  @override
+  String get codexRewindFailedWithoutDetails => '无法回退对话。';
+
+  @override
+  String codexRewindFailed(Object error) {
+    return '无法回退对话：$error';
+  }
+
+  @override
   String get fork => '分叉';
 
   @override
