@@ -63,20 +63,14 @@ class Offerings {
 }
 
 class Offering {
-  const Offering({
-    this.identifier,
-    this.availablePackages = const [],
-  });
+  const Offering({this.identifier, this.availablePackages = const []});
 
   final String? identifier;
   final List<Package> availablePackages;
 }
 
 class Package {
-  const Package({
-    required this.identifier,
-    required this.storeProduct,
-  });
+  const Package({required this.identifier, required this.storeProduct});
 
   final String identifier;
   final StoreProduct storeProduct;
@@ -87,13 +81,24 @@ class StoreProduct {
     required this.identifier,
     required this.title,
     required this.priceString,
+    this.price = 0,
+    this.defaultOption,
     this.subscriptionPeriod,
   });
 
   final String identifier;
   final String title;
+  final double price;
   final String priceString;
+  final SubscriptionOption? defaultOption;
   final String? subscriptionPeriod;
+}
+
+class SubscriptionOption {
+  const SubscriptionOption({required this.id, required this.productId});
+
+  final String id;
+  final String productId;
 }
 
 class CustomerInfo {
@@ -107,10 +112,7 @@ class CustomerInfo {
 }
 
 class EntitlementInfos {
-  const EntitlementInfos({
-    this.all = const {},
-    this.active = const {},
-  });
+  const EntitlementInfos({this.all = const {}, this.active = const {}});
 
   final Map<String, EntitlementInfo> all;
   final Map<String, EntitlementInfo> active;
@@ -118,10 +120,16 @@ class EntitlementInfos {
 
 class EntitlementInfo {
   const EntitlementInfo({
+    this.isActive = false,
+    this.productIdentifier = '',
+    this.productPlanIdentifier,
     this.originalPurchaseDate,
     this.latestPurchaseDate,
   });
 
+  final bool isActive;
+  final String productIdentifier;
+  final String? productPlanIdentifier;
   final String? originalPurchaseDate;
   final String? latestPurchaseDate;
 }
